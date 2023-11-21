@@ -4,7 +4,7 @@
  * Plugin URI: https://github.com/ipstenu/varnish-http-purge/
  * Description: Automatically empty cached pages when content on your site is modified.
  * Version: 5.2.0
- * Author: Mika Epstein
+ * Author: Mika Epstein, Danila Vershinin
  * Author URI: https://halfelf.org/
  * License: http://www.apache.org/licenses/LICENSE-2.0
  * Text Domain: varnish-http-purge
@@ -13,6 +13,7 @@
  * @package varnish-http-purge
  *
  * Copyright 2016-2023 Mika Epstein (email: ipstenu@halfelf.org)
+ * Copyright 2023 Danila Vershinin (email: ciapnz@gmail.com)
  *
  * This file is part of Proxy Cache Purge (formerly Varnish HTTP Purge), a
  * plugin for WordPress.
