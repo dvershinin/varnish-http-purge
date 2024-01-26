@@ -1,5 +1,5 @@
 = Proxy Cache Purge =
-Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber
+Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.3
@@ -9,10 +9,6 @@ Requires PHP: 5.6
 Automatically empty proxy cached content when your site is modified.
 
 == Description ==
-
-<strong><em>19 OCTOBER 2023 -- WARNING: THIS PLUGIN IS NOT BEING ACTIVELY MAINTAINED.</em></strong>
-
-If you're interested in adopting this plugin, please read [Requests to Take Over Development](https://github.com/Ipstenu/varnish-http-purge/wiki/Requests-to-Take-Over-Development).
 
 <strong>This plugin <em>does not</em> install nor configure a cache proxy. It acts as an interface with such services.</strong>
 
@@ -254,7 +250,22 @@ Yes _IF_ the service has an interface. Sadly Nginx does not. [Detailed direction
 
 It means that somewhere your server's headers aren't returning the data the plugin needs to see, in order to determine if the cache is working. The most common cause is that your server isn't returning the `X-Varnish` header or the `Age` header.
 
+= I have renamed X-Varnish header for security reasons and Site Health Check says no cache service =
+
+You can use <code>varnish_http_purge_x_varnish_header_name</code> filter to customize this header name, like so:
+
+<code>
+function change_varnish_header( $default_header ) {
+    return 'My-Custom-Header'; // Replace with the desired header
+}
+add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' );
+</code>
+
 == Changelog ==
+
+= 5.2.1 =
+* January 2024
+* Allow custom X-Varnish header name
 
 = 5.2.0 =
 * July 2023
