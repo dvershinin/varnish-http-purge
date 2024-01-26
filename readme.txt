@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.3
-Stable tag: 5.2.0
+Stable tag: 5.2.1
 Requires PHP: 5.6
 
 Automatically empty proxy cached content when your site is modified.

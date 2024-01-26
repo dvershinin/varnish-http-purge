@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Proxy Cache Purge
- * Plugin URI: https://github.com/ipstenu/varnish-http-purge/
+ * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.2.0
+ * Version: 5.2.1
  * Author: Mika Epstein, Danila Vershinin
  * Author URI: https://halfelf.org/
  * License: http://www.apache.org/licenses/LICENSE-2.0
@@ -37,7 +37,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.2.0';
+	public static $version = '5.2.1';
 
 	/**
 	 * List of URLs to be purged
