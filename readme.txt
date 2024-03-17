@@ -265,7 +265,7 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 
 = 5.2.1 =
 * January 2024
-* Allow custom X-Varnish header name
+* Allow custom X-Varnish header name.
 
 = 5.2.0 =
 * July 2023
