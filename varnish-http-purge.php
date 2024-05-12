@@ -915,6 +915,75 @@ class VarnishPurger {
 				if ( isset( $rest_permalink ) ) {
 					array_push( $listofurls, $rest_permalink );
 				}
+
+				// Category purge based on Donnacha's work in WP Super Cache.
+				$categories = get_the_category( $post_id );
+				if ( $categories ) {
+					foreach ( $categories as $cat ) {
+						array_push(
+							$listofurls,
+							get_category_link( $cat->term_id ),
+							get_rest_url() . $rest_api_route . '/categories/' . $cat->term_id . '/'
+						);
+					}
+				}
+
+				// Tag purge based on Donnacha's work in WP Super Cache.
+				$tags = get_the_tags( $post_id );
+				if ( $tags ) {
+					$tag_base = get_site_option( 'tag_base' );
+					if ( '' === $tag_base ) {
+						$tag_base = '/tag/';
+					}
+					foreach ( $tags as $tag ) {
+						array_push(
+							$listofurls,
+							get_tag_link( $tag->term_id ),
+							get_rest_url() . $rest_api_route . $tag_base . $tag->term_id . '/'
+						);
+					}
+				}
+				// Custom Taxonomies: Only show if the taxonomy is public.
+				$taxonomies = get_post_taxonomies( $post_id );
+				if ( $taxonomies ) {
+					foreach ( $taxonomies as $taxonomy ) {
+						$features = (array) get_taxonomy( $taxonomy );
+						if ( $features['public'] ) {
+							$terms = wp_get_post_terms( $post_id, $taxonomy );
+							foreach ( $terms as $term ) {
+								array_push(
+									$listofurls,
+									get_term_link( $term ),
+									get_rest_url() . $rest_api_route . '/' . $term->taxonomy . '/' . $term->slug . '/'
+								);
+							}
+						}
+					}
+				}
+
+				// If the post is a post, we have more things to flush
+				// Pages and Woo Things don't need all this.
+				if ( $this_post_type && 'post' === $this_post_type ) {
+					// Author URLs:
+					$author_id = get_post_field( 'post_author', $post_id );
+					array_push(
+						$listofurls,
+						get_author_posts_url( $author_id ),
+						get_author_feed_link( $author_id ),
+						get_rest_url() . $rest_api_route . '/users/' . $author_id . '/'
+					);
+
+					// Feeds:
+					array_push(
+						$listofurls,
+						get_bloginfo_rss( 'rdf_url' ),
+						get_bloginfo_rss( 'rss_url' ),
+						get_bloginfo_rss( 'rss2_url' ),
+						get_bloginfo_rss( 'atom_url' ),
+						get_bloginfo_rss( 'comments_rss2_url' ),
+						get_post_comments_feed_link( $post_id )
+					);
+				}
 			}
 
 			// Add in AMP permalink for official WP AMP plugin:
@@ -934,75 +1003,6 @@ class VarnishPurger {
 				$trashpost = get_permalink( $post_id );
 				$trashpost = str_replace( '__trashed', '', $trashpost );
 				array_push( $listofurls, $trashpost, $trashpost . 'feed/' );
-			}
-
-			// Category purge based on Donnacha's work in WP Super Cache.
-			$categories = get_the_category( $post_id );
-			if ( $categories ) {
-				foreach ( $categories as $cat ) {
-					array_push(
-						$listofurls,
-						get_category_link( $cat->term_id ),
-						get_rest_url() . $rest_api_route . '/categories/' . $cat->term_id . '/'
-					);
-				}
-			}
-
-			// Tag purge based on Donnacha's work in WP Super Cache.
-			$tags = get_the_tags( $post_id );
-			if ( $tags ) {
-				$tag_base = get_site_option( 'tag_base' );
-				if ( '' === $tag_base ) {
-					$tag_base = '/tag/';
-				}
-				foreach ( $tags as $tag ) {
-					array_push(
-						$listofurls,
-						get_tag_link( $tag->term_id ),
-						get_rest_url() . $rest_api_route . $tag_base . $tag->term_id . '/'
-					);
-				}
-			}
-			// Custom Taxonomies: Only show if the taxonomy is public.
-			$taxonomies = get_post_taxonomies( $post_id );
-			if ( $taxonomies ) {
-				foreach ( $taxonomies as $taxonomy ) {
-					$features = (array) get_taxonomy( $taxonomy );
-					if ( $features['public'] ) {
-						$terms = wp_get_post_terms( $post_id, $taxonomy );
-						foreach ( $terms as $term ) {
-							array_push(
-								$listofurls,
-								get_term_link( $term ),
-								get_rest_url() . $rest_api_route . '/' . $term->taxonomy . '/' . $term->slug . '/'
-							);
-						}
-					}
-				}
-			}
-
-			// If the post is a post, we have more things to flush
-			// Pages and Woo Things don't need all this.
-			if ( $this_post_type && 'post' === $this_post_type ) {
-				// Author URLs:
-				$author_id = get_post_field( 'post_author', $post_id );
-				array_push(
-					$listofurls,
-					get_author_posts_url( $author_id ),
-					get_author_feed_link( $author_id ),
-					get_rest_url() . $rest_api_route . '/users/' . $author_id . '/'
-				);
-
-				// Feeds:
-				array_push(
-					$listofurls,
-					get_bloginfo_rss( 'rdf_url' ),
-					get_bloginfo_rss( 'rss_url' ),
-					get_bloginfo_rss( 'rss2_url' ),
-					get_bloginfo_rss( 'atom_url' ),
-					get_bloginfo_rss( 'comments_rss2_url' ),
-					get_post_comments_feed_link( $post_id )
-				);
 			}
 
 			// Archives and their feeds.
