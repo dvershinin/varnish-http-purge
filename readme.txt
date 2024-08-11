@@ -263,6 +263,10 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 
 == Changelog ==
 
+= 5.2.2 =
+* August 2024
+* Fix undefined variable $rest_api_route
+
 = 5.2.1 =
 * January 2024
 * Allow custom X-Varnish header name.

@@ -37,7 +37,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.2.1';
+	public static $version = '5.2.2';
 
 	/**
 	 * List of URLs to be purged
