@@ -99,7 +99,7 @@ When using Nginx based proxies, your IP will likely be `localhost`.
 
 **Please report all issues in the [support forums](https://wordpress.org/support/plugin/varnish-http-purge)**
 
-If you have code patches, [pull requests are welcome](https://github.com/Ipstenu/varnish-http-purge).
+If you have code patches, [pull requests are welcome](https://github.com/dvershinin/varnish-http-purge).
 
 = Don't you work at DreamHost? Is this Official or DreamHost only? =
 
@@ -151,7 +151,7 @@ No. Some of them have behaviours that causes them not to cache, either by accide
 
 = I'm a developer, can I tell your cache to empty in my plugin/theme? =
 
-Yes. [Full documentation can be found on Custom Filters in the wiki](https://github.com/Ipstenu/varnish-http-purge/wiki/Custom-Filters).
+Yes. [Full documentation can be found on Custom Filters in the wiki](https://github.com/dvershinin/varnish-http-purge/wiki/Custom-Filters).
 
 = Can I turn off caching? =
 
@@ -244,7 +244,7 @@ This is a question beyond the support of plugin. I do not have the resources ava
 
 = How can I see what the plugin is sending to the cache service? =
 
-Yes _IF_ the service has an interface. Sadly Nginx does not. [Detailed directions can be found on the debugging section on GitHub](https://github.com/Ipstenu/varnish-http-purge/wiki). Bear in mind, these interfaces tend to be command-line only.
+Yes _IF_ the service has an interface. Sadly Nginx does not. [Detailed directions can be found on the debugging section on GitHub](https://github.com/dvershinin/varnish-http-purge/wiki). Bear in mind, these interfaces tend to be command-line only.
 
 = Caching is detected but cannot be confirmed. What does that mean? =
 
