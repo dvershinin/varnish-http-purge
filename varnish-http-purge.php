@@ -1030,7 +1030,7 @@ class VarnishPurger {
 			array_push(
 				$listofurls,
 				get_rest_url(),
-				$this->the_home_url() . '/'
+				$this->the_home_url() . $this->get_trailing_slash() 
 			);
 			if ( 'page' === get_site_option( 'show_on_front' ) ) {
 				// Ensure we have a page_for_posts setting to avoid empty URL.
