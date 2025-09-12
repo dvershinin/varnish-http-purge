@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  push:
+    branches: [ trunk, main ]
+  pull_request:
+    branches: [ trunk, main ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build tester image
+        working-directory: tests
+        run: docker build -t vhp-tester:ci .
+
+      - name: Start stack
+        working-directory: tests
+        run: docker compose up -d
+
+      - name: WP Setup
+        working-directory: tests
+        run: bash setup.sh
+
+      - name: Run tests
+        working-directory: tests
+        env:
+          WP_URL: http://varnish
+        run: docker compose run --rm tester -q
+
+      - name: Teardown
+        if: always()
+        working-directory: tests
+        run: docker compose down -v
+
+

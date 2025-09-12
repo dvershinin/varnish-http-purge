@@ -1,0 +1,95 @@
+services:
+  db:
+    image: mariadb:10.11
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpw
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-prootpw"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  wordpress:
+    image: wordpress:6.6-php8.2-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        define('VHP_VARNISH_IP', 'varnish');
+        define('WP_ENVIRONMENT_TYPE', 'development');
+        define('DISABLE_WP_CRON', true);
+        define('WP_DEBUG_DISPLAY', false);
+    volumes:
+      - wp_data:/var/www/html
+      - ../:/var/www/html/wp-content/plugins/varnish-http-purge
+      - ./mu-plugins/test-control.php:/var/www/html/wp-content/mu-plugins/test-control.php
+
+  wpcli:
+    image: wordpress:cli-php8.2
+    depends_on:
+      - db
+      - wordpress
+    user: "33:33"
+    volumes:
+      - wp_data:/var/www/html
+      - ../:/var/www/html/wp-content/plugins/varnish-http-purge
+      - ./mu-plugins/test-control.php:/var/www/html/wp-content/mu-plugins/test-control.php
+    entrypoint: wp
+    command: --info
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        define('VHP_VARNISH_IP', 'varnish');
+        define('WP_ENVIRONMENT_TYPE', 'development');
+        define('DISABLE_WP_CRON', true);
+        define('WP_DEBUG_DISPLAY', false);
+
+  varnish:
+    build:
+      context: ./varnish
+    platform: linux/amd64
+    user: root
+    depends_on:
+      - wordpress
+    volumes:
+      - ./varnish/default.vcl:/etc/varnish/default.vcl:ro
+    tmpfs:
+      - /var/lib/varnish
+
+  tester:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - wordpress
+      - varnish
+    user: "33:33"
+    working_dir: /workspace
+    volumes:
+      - wp_data:/var/www/html
+      - ../:/workspace
+    entrypoint: pytest
+    command: -q -c tests/pytest.ini
+    environment:
+      WP_URL: http://varnish
+
+volumes:
+  wp_data:
+
+

@@ -1,0 +1,9 @@
+/tests export-ignore
+/.github export-ignore
+/.gitignore export-ignore
+/.editorconfig export-ignore
+/Makefile export-ignore
+/DOCKER.md export-ignore
+/*.diff export-ignore
+/*.sh export-ignore
+
