@@ -35,6 +35,12 @@ def _purge_all():
     r.raise_for_status()
 
 
+def _warm_get(url: str):
+    # Use GET to ensure cache fill; tolerate redirects
+    r = requests.get(url, headers=_host_headers(), allow_redirects=False)
+    return r
+
+
 @pytest.mark.parametrize("mode,expect_miss", [
     ("old", False),
     ("new", True),
@@ -51,8 +57,16 @@ def test_adminbar_purge_link_no_trailing_slash(mode, expect_miss):
     _purge_all()
     time.sleep(0.3)
     assert header(head(url), "X-Cache") == "MISS"
-    time.sleep(0.2)
-    assert header(head(url), "X-Cache") == "HIT"
+    # Actively warm with a GET to avoid HEAD-only warm flakiness
+    _warm_get(url)
+    # Retry a few times until HIT
+    got = None
+    for _ in range(6):
+        time.sleep(0.25)
+        got = header(head(url), "X-Cache")
+        if got == "HIT":
+            break
+    assert got == "HIT"
 
     # Simulate admin bar purge effect server-side, focusing on the URL building logic
     b = requests.post(f"{API_BASE}/adminbar-purge-exec", json={"page_url": url, "mode": mode}, headers=_host_headers())

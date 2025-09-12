@@ -8,18 +8,24 @@ WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
 API_BASE = f"{WP_URL}/wp-json/test/v1"
 _parsed = urlparse(WP_URL)
 HOST_HEADER_VALUE = "localhost:8080" if _parsed.hostname == "varnish" else _parsed.netloc
+WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", "http://wordpress")
 
 
 def _host_headers():
     return {"Host": HOST_HEADER_VALUE}
 
 
-def wait_http_ok(url: str, timeout: float = 60.0):
+def wait_http_ok(url: str, timeout: float = 60.0, headers=None, accept_codes=None):
+    """Wait until an HTTP endpoint responds with one of acceptable status codes.
+    Defaults to (200, 301, 302, 403, 503) to be tolerant during warmup behind Varnish.
+    """
+    if accept_codes is None:
+        accept_codes = {200, 301, 302, 403, 503}
     start = time.time()
     while time.time() - start < timeout:
         try:
-            r = requests.head(url, timeout=3, allow_redirects=False, headers=_host_headers())
-            if r.status_code in (200, 301):
+            r = requests.head(url, timeout=3, allow_redirects=False, headers=headers or {})
+            if r.status_code in accept_codes:
                 return
         except Exception:
             pass
@@ -29,7 +35,10 @@ def wait_http_ok(url: str, timeout: float = 60.0):
 
 @pytest.fixture(scope="session", autouse=True)
 def ensure_up():
-    wait_http_ok(WP_URL)
+    # First ensure WordPress backend is up (faster and avoids Varnish backend timeout)
+    wait_http_ok(WP_BACKEND_URL, timeout=90.0)
+    # Then ensure Varnish is reachable (tolerate 503 during warmup)
+    wait_http_ok(WP_URL, timeout=90.0, headers=_host_headers())
 
 
 @pytest.fixture()

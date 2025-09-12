@@ -32,6 +32,7 @@ jobs:
         working-directory: tests
         env:
           WP_URL: http://varnish
+          WP_BACKEND_URL: http://wordpress
         run: docker compose run --rm tester -q
 
       - name: Teardown
