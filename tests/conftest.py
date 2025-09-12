@@ -5,10 +5,10 @@ import pytest
 from urllib.parse import urlparse, urlunparse
 
 WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
-API_BASE = f"{WP_URL}/wp-json/test/v1"
+WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", "http://wordpress")
+API_BASE = f"{WP_BACKEND_URL}/wp-json/test/v1"
 _parsed = urlparse(WP_URL)
 HOST_HEADER_VALUE = "localhost:8080" if _parsed.hostname == "varnish" else _parsed.netloc
-WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", "http://wordpress")
 
 
 def _host_headers():
