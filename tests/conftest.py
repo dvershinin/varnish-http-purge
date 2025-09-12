@@ -35,10 +35,8 @@ def wait_http_ok(url: str, timeout: float = 60.0, headers=None, accept_codes=Non
 
 @pytest.fixture(scope="session", autouse=True)
 def ensure_up():
-    # First ensure WordPress backend is up (faster and avoids Varnish backend timeout)
+    # Ensure WordPress backend is up (Varnish will be hit in tests with retries)
     wait_http_ok(WP_BACKEND_URL, timeout=90.0)
-    # Then ensure Varnish is reachable (tolerate 503 during warmup)
-    wait_http_ok(WP_URL, timeout=90.0, headers=_host_headers())
 
 
 @pytest.fixture()
