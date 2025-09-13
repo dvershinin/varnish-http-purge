@@ -48,6 +48,9 @@ def head(url: str):
 
 def header(r, name: str) -> str:
     return r.headers.get(name)
+def _is_flat_string_list(items):
+    return isinstance(items, list) and all(isinstance(x, str) for x in items)
+
 
 
 def test_post_update_triggers_miss_then_hits(fresh_post):
@@ -86,6 +89,40 @@ def test_post_update_triggers_miss_then_hits(fresh_post):
     time.sleep(0.3)
     r5 = head(url)
     assert header(r5, "X-Cache") == "HIT"
+
+
+def test_vhp_domains_duplicates_urls_for_alternate_domains(fresh_post):
+    # The environment sets VHP_DOMAINS in WP config to two alternate domains.
+    # When a post is updated, the plugin should add purge URLs for those domains too.
+    post_id, url = fresh_post
+
+    # Warm to HIT
+    assert header(head(url), "X-Cache") == "MISS"
+    assert header(head(url), "X-Cache") == "HIT"
+
+    # Update the post to trigger purges
+    rq = requests.put(f"{API_BASE}/post/{post_id}", json={"content": f"Updated {time.time()}"}, headers=_host_headers())
+    rq.raise_for_status()
+
+    # Ask backend to generate purge URLs; verify alternates are present when VHP_DOMAINS is set
+    gr = requests.post(f"{API_BASE}/purge", json={"post_id": post_id}, headers=_host_headers())
+    gr.raise_for_status()
+    generated = gr.json().get("generated", [])
+    # With the bug present, duplicates are pushed as a nested array; enforce flat string list
+    assert _is_flat_string_list(generated), generated
+    # Primary home URL must be present
+    assert any(u.startswith(_parsed.scheme + '://' + HOST_HEADER_VALUE.split(':')[0]) for u in generated), generated
+    # Alternates must be present (proves proper merge, not nested append)
+    assert any(u.startswith('http://alt1.test') for u in generated), generated
+    assert any(u.startswith('http://alt2.test') for u in generated), generated
+
+    # Still verify we observe a MISS on the primary URL after update
+    for _ in range(12):
+        time.sleep(0.5)
+        if header(head(url), "X-Cache") == "MISS":
+            break
+    else:
+        assert False, "Expected MISS after update with VHP_DOMAINS configured"
 
 
 @pytest.mark.parametrize("mode,expect_miss", [

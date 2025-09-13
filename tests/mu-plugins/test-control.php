@@ -88,6 +88,8 @@ add_action( 'rest_api_init', function() {
         'callback' => function( WP_REST_Request $req ) {
             $all = (bool) $req->get_param('all');
             $url = $req->get_param('url');
+            // If URL omitted, allow triggering generate_urls to inspect duplicates
+            $post_id = $req->get_param('post_id');
             if ( $all ) {
                 $target = home_url() . '/?vhp-regex';
                 if ( class_exists('VarnishPurger') ) {
@@ -95,13 +97,18 @@ add_action( 'rest_api_init', function() {
                 }
                 return array( 'ok' => true, 'purged' => $target );
             }
-            if ( ! is_string( $url ) || empty( $url ) ) {
-                return new WP_Error( 'bad_url', 'url must be provided', array( 'status' => 400 ) );
+            if ( is_string( $url ) && ! empty( $url ) ) {
+                if ( class_exists('VarnishPurger') ) {
+                    VarnishPurger::purge_url( esc_url_raw( $url ) );
+                }
+                return array( 'ok' => true, 'purged' => $url );
             }
-            if ( class_exists('VarnishPurger') ) {
-                VarnishPurger::purge_url( esc_url_raw( $url ) );
+            if ( class_exists('VarnishPurger') && is_numeric( $post_id ) ) {
+                $vp = new VarnishPurger();
+                $urls = $vp->generate_urls( intval( $post_id ) );
+                return array( 'ok' => true, 'generated' => $urls );
             }
-            return array( 'ok' => true, 'purged' => $url );
+            return new WP_Error( 'bad_request', 'url or post_id must be provided', array( 'status' => 400 ) );
         },
         'permission_callback' => '__return_true',
     ) );
