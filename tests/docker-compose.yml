@@ -92,8 +92,7 @@ services:
         condition: service_healthy
     volumes:
       - ./varnish/default.vcl:/etc/varnish/default.vcl:ro
-    tmpfs:
-      - /var/lib/varnish
+    # Use container filesystem for /var/lib/varnish to avoid noexec tmpfs on some runners
     # No healthcheck; rely on wordpress health and simple wait in CI
     ports:
       - "8080:80"

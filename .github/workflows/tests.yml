@@ -60,7 +60,8 @@ jobs:
           VID=$(docker compose -p vhp ps -q varnish)
           echo "varnish id=$VID"
           for i in {1..60}; do
-            STATE=$(docker inspect -f '{{.State.Status}}' "$VID" || true)
+            VID=$(docker compose -p vhp ps -q varnish || true)
+            STATE=$(test -n "$VID" && docker inspect -f '{{.State.Status}}' "$VID" || echo "")
             echo "varnish=$STATE"
             if [ "$STATE" = "running" ]; then break; fi
             if [ "$STATE" = "exited" ]; then
@@ -71,7 +72,8 @@ jobs:
             fi
             sleep 2
           done
-          FINAL=$(docker inspect -f '{{.State.Status}}' "$VID" || true)
+          VID=$(docker compose -p vhp ps -q varnish || true)
+          FINAL=$(test -n "$VID" && docker inspect -f '{{.State.Status}}' "$VID" || echo "")
           if [ "$FINAL" != "running" ]; then
             echo "Varnish failed to start (state=$FINAL). Showing logs:"; docker compose -p vhp logs --no-color varnish | tail -n 400 || true; exit 1
           fi
