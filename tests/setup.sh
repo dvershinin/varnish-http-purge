@@ -10,9 +10,9 @@ until docker compose exec -T wordpress curl -sSf http://localhost/wp-admin/insta
   sleep 3
 done
 
-if ! wp core is-installed --url="http://localhost:8080"; then
+if ! wp core is-installed --url="http://host.docker.internal:8080"; then
   wp core install \
-    --url="http://localhost:8080" \
+    --url="http://host.docker.internal:8080" \
     --title="Varnish Test" \
     --admin_user=admin \
     --admin_password=admin \
