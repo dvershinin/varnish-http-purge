@@ -19,9 +19,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Start stack (db, wordpress, varnish)
+      - name: Start DB and WordPress
         working-directory: tests
-        run: docker compose -p vhp up -d db wordpress varnish
+        run: docker compose -p vhp up -d db wordpress
 
       - name: Inspect networks (prove same network & DNS)
         working-directory: tests
@@ -40,22 +40,30 @@ jobs:
           echo "# compose ps:"
           docker compose -p vhp ps | cat
 
-      - name: Wait for services to be healthy
+      - name: Wait for WordPress health
         working-directory: tests
         run: |
-          # Prove DNS first
-          for i in {1..60}; do
-            if docker compose -p vhp exec -T wordpress getent hosts varnish; then
-              echo "varnish resolves"; break; fi; sleep 2; done
-          # Resolver state
-          docker compose -p vhp exec -T wordpress sh -lc 'echo "== /etc/resolv.conf =="; cat /etc/resolv.conf; echo "== nsswitch =="; cat /etc/nsswitch.conf || true; getent hosts varnish || true; (nslookup varnish || true)'
           # Wait until wordpress reports healthy
           for i in {1..120}; do
             WP=$(docker inspect -f '{{.State.Health.Status}}' $(docker compose -p vhp ps -q wordpress) || true)
             echo "wordpress=$WP"
             if [ "$WP" = "healthy" ]; then
               break; fi; sleep 2; done
-          # Probe varnish from within the wordpress container until it responds
+
+      - name: Start Varnish (after WP is healthy)
+        working-directory: tests
+        run: docker compose -p vhp up -d varnish
+
+      - name: Probe varnish from WordPress
+        working-directory: tests
+        run: |
+          # First ensure DNS for 'varnish' is published inside wordpress container
+          for i in {1..120}; do
+            if docker compose -p vhp exec -T wordpress getent hosts varnish; then
+              echo "varnish resolves"; break; fi; sleep 2; done
+          # Show resolver state for debugging if needed
+          docker compose -p vhp exec -T wordpress sh -lc 'echo "== /etc/resolv.conf =="; cat /etc/resolv.conf; echo "== nsswitch =="; cat /etc/nsswitch.conf || true; getent hosts varnish || true'
+          # Then HTTP probe
           for i in {1..60}; do
             if docker compose -p vhp exec -T wordpress bash -lc "curl -fsS http://varnish/ >/dev/null"; then
               echo "Varnish reachable"; break; fi; sleep 2; done

@@ -88,7 +88,8 @@ services:
     platform: linux/amd64
     user: root
     depends_on:
-      - wordpress
+      wordpress:
+        condition: service_healthy
     volumes:
       - ./varnish/default.vcl:/etc/varnish/default.vcl:ro
     tmpfs:
