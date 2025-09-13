@@ -16,6 +16,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Ensure pip cache dir exists
+        run: mkdir -p ~/.cache/pip
+
       - name: Cache pip
         uses: actions/cache@v4
         with:
