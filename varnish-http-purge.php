@@ -1052,18 +1052,18 @@ class VarnishPurger {
 				foreach ( $domains as $a_domain ) {
 					foreach ( $listofurls as $url ) {
 						// If the URL contains the filtered home_url, and is NOT equal to the domain we're trying to replace, we will add it to the new urls
-						if ( false !== strpos( $this->the_home_url(), $url ) && $this->the_home_url() !== $a_domain ) {
+						if ( false !== strpos( $url, $this->the_home_url() ) && $this->the_home_url() !== $a_domain ) {
 							$newurls[] = str_replace( $this->the_home_url(), $a_domain, $url );
 						}
 						// If the URL contains the raw home_url, and is NOT equal to the domain we're trying to replace, we will add it to the new urls
-						if ( false !== strpos( home_url(), $url ) && home_url() !== $a_domain ) {
+						if ( false !== strpos( $url, home_url() ) && home_url() !== $a_domain ) {
 							$newurls[] = str_replace( home_url(), $a_domain, $url );
 						}
 					}
 				}
 
 				// Merge all the URLs
-				array_push( $listofurls, $newurls );
+				array_push( $listofurls, ...$newurls );
 			}
 
 			// Make sure each URL only gets purged once, eh?
