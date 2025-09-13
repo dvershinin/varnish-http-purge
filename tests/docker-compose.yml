@@ -1,7 +1,11 @@
 name: vhp
 
+networks:
+  vhp_net:
+    name: vhp_net
 services:
   db:
+    networks: [vhp_net]
     image: mariadb:10.11
     command: --default-authentication-plugin=mysql_native_password
     environment:
@@ -18,6 +22,7 @@ services:
       retries: 20
 
   wordpress:
+    networks: [vhp_net]
     image: wordpress:6.6-php8.2-apache
     depends_on:
       db:
@@ -44,6 +49,7 @@ services:
       retries: 30
 
   wpcli:
+    networks: [vhp_net]
     image: wordpress:cli-php8.2
     depends_on:
       - db
@@ -69,6 +75,7 @@ services:
         define('WP_DEBUG_DISPLAY', false);
 
   varnish:
+    networks: [vhp_net]
     build:
       context: ./varnish
     platform: linux/amd64
@@ -84,6 +91,7 @@ services:
       - "8080:80"
 
   tester:
+    networks: [vhp_net]
     build:
       context: .
       dockerfile: Dockerfile

@@ -19,22 +19,26 @@ jobs:
 
       - name: Start stack (db, wordpress, varnish)
         working-directory: tests
-        run: docker compose up -d db wordpress varnish
+        run: docker compose -p vhp up -d db wordpress varnish
 
       - name: Wait for services to be healthy
         working-directory: tests
         run: |
-          # Wait until both wordpress and varnish report healthy
+          # DNS resolution proof
+          for i in {1..60}; do
+            if docker compose -p vhp exec -T wordpress getent hosts varnish; then
+              echo "varnish resolves"; break; fi; sleep 2; done
+          # Wait until wordpress is healthy
           for i in {1..120}; do
-            WP=$(docker inspect -f '{{.State.Health.Status}}' $(docker compose ps -q wordpress) || true)
+            WP=$(docker inspect -f '{{.State.Health.Status}}' $(docker compose -p vhp ps -q wordpress) || true)
             echo "wordpress=$WP"
             if [ "$WP" = "healthy" ]; then
               break; fi; sleep 2; done
           # Probe varnish from within the wordpress container until it responds
           for i in {1..60}; do
-            if docker compose exec -T wordpress bash -lc "curl -fsS http://varnish/ >/dev/null"; then
+            if docker compose -p vhp exec -T wordpress bash -lc "curl -fsS http://varnish/ >/dev/null"; then
               echo "Varnish reachable"; break; fi; sleep 2; done
-          docker compose ps | cat
+          docker compose -p vhp ps | cat
 
       - name: WP Setup
         working-directory: tests
@@ -45,7 +49,7 @@ jobs:
         env:
           WP_URL: http://varnish
           WP_BACKEND_URL: http://wordpress
-        run: docker compose up --exit-code-from tester --abort-on-container-exit tester
+        run: docker compose -p vhp up --exit-code-from tester --abort-on-container-exit tester
 
       - name: Show logs on failure
         if: failure()
@@ -54,13 +58,13 @@ jobs:
           echo "== Docker ps =="
           docker ps -a || true
           echo "== Compose ps =="
-          docker compose ps || true
+          docker compose -p vhp ps || true
           echo "== Compose logs (last 500 lines) =="
-          docker compose logs --no-color | tail -n 500 || true
+          docker compose -p vhp logs --no-color | tail -n 500 || true
 
       - name: Teardown
         if: always()
         working-directory: tests
-        run: docker compose down -v
+        run: docker compose -p vhp down -v
 
 
