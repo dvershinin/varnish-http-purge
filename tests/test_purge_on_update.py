@@ -125,28 +125,21 @@ def test_adminbar_purge_url_with_no_trailing_slash(mode, expect_miss):
         assert hit_miss != "MISS"
 
 
-@pytest.mark.xfail(reason="Trailing-slash-less permalink purges not handled yet")
-def test_permalinks_no_trailing_slash_xfail(fresh_post):
-    # Switch permalinks to no trailing slash
+def test_permalinks_no_trailing_slash_update_purges(fresh_post):
     r = requests.post(f"{API_BASE}/permalinks", json={"structure": "/%postname%"}, headers=_host_headers())
     r.raise_for_status()
 
     post_id, url = fresh_post
-
-    # Normalize URL likely without slash
     url = url.rstrip('/')
 
-    # Warm cache
     r0 = head(url)
     assert header(r0, "X-Cache") == "MISS"
     r1 = head(url)
     assert header(r1, "X-Cache") == "HIT"
 
-    # Update the post
     rq = requests.put(f"{API_BASE}/post/{post_id}", json={"content": f"Updated {time.time()}"}, headers=_host_headers())
     rq.raise_for_status()
 
-    # Expect MISS after purge (xfail documents current bug)
     for _ in range(8):
         time.sleep(0.5)
         r2 = head(url)
