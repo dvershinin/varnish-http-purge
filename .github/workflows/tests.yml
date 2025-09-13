@@ -23,6 +23,16 @@ jobs:
         working-directory: tests
         run: docker compose -p vhp up -d db wordpress varnish
 
+      - name: Inspect networks (prove same network & DNS)
+        working-directory: tests
+        run: |
+          echo "# wordpress networks:" 
+          docker inspect -f '{{json .NetworkSettings.Networks}}' $(docker compose -p vhp ps -q wordpress)
+          echo "# varnish networks:"
+          docker inspect -f '{{json .NetworkSettings.Networks}}' $(docker compose -p vhp ps -q varnish)
+          echo "# vhp_net members:"
+          docker network inspect vhp_net -f '{{json .Containers}}' || true
+
       - name: Wait for services to be healthy
         working-directory: tests
         run: |
@@ -30,6 +40,8 @@ jobs:
           for i in {1..60}; do
             if docker compose -p vhp exec -T wordpress getent hosts varnish; then
               echo "varnish resolves"; break; fi; sleep 2; done
+          # Resolver state
+          docker compose -p vhp exec -T wordpress sh -lc 'echo "== /etc/resolv.conf =="; cat /etc/resolv.conf; echo "== nsswitch =="; cat /etc/nsswitch.conf || true; getent hosts varnish || true; (nslookup varnish || true)'
           # Wait until wordpress reports healthy
           for i in {1..120}; do
             WP=$(docker inspect -f '{{.State.Health.Status}}' $(docker compose -p vhp ps -q wordpress) || true)

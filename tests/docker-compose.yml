@@ -1,5 +1,9 @@
 name: vhp
 
+networks:
+  vhp_net:
+    name: vhp_net
+
 services:
   db:
     image: mariadb:10.11
@@ -16,6 +20,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      - vhp_net
 
   wordpress:
     image: wordpress:6.6-php8.2-apache
@@ -42,6 +48,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+    dns_opt:
+      - ndots:0
+      - attempts:1
+      - timeout:2
+    networks:
+      - vhp_net
 
   wpcli:
     image: wordpress:cli-php8.2
@@ -67,6 +79,8 @@ services:
         define('WP_ENVIRONMENT_TYPE', 'development');
         define('DISABLE_WP_CRON', true);
         define('WP_DEBUG_DISPLAY', false);
+    networks:
+      - vhp_net
 
   varnish:
     build:
@@ -82,6 +96,10 @@ services:
     # No healthcheck; rely on wordpress health and simple wait in CI
     ports:
       - "8080:80"
+    networks:
+      vhp_net:
+        aliases:
+          - varnish
 
   tester:
     build:
@@ -101,6 +119,12 @@ services:
     command: -q -c tests/pytest.ini
     environment:
       WP_URL: http://varnish
+    dns_opt:
+      - ndots:0
+      - attempts:1
+      - timeout:2
+    networks:
+      - vhp_net
 
 volumes:
   wp_data:
