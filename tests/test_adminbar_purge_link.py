@@ -21,6 +21,14 @@ def _to_container_url(u: str) -> str:
     return urlunparse((dest.scheme, dest.netloc, orig.path, orig.params, orig.query, orig.fragment))
 
 
+def _to_home_url(u: str) -> str:
+    """Convert URL to use the WordPress site host (home_url), not the varnish service.
+    This simulates how WP actually builds adminbar links.
+    """
+    orig = urlparse(u)
+    return urlunparse((orig.scheme, HOST_HEADER_VALUE, orig.path, orig.params, orig.query, orig.fragment))
+
+
 def head(url: str):
     r = requests.head(url, headers=_host_headers(), allow_redirects=False)
     r.raise_for_status()
@@ -70,7 +78,9 @@ def test_adminbar_purge_link_no_trailing_slash(mode, expect_miss):
     assert got == "HIT"
 
     # Simulate admin bar purge effect server-side, focusing on the URL building logic
-    b = requests.post(f"{API_BASE}/adminbar-purge-exec", json={"page_url": url, "mode": mode}, headers=_host_headers())
+    # Simulate the server building links with the site's home_url host
+    page_url = _to_home_url(url)
+    b = requests.post(f"{API_BASE}/adminbar-purge-exec", json={"page_url": page_url, "mode": mode}, headers=_host_headers())
     b.raise_for_status()
 
     hit_miss = None

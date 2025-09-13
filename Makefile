@@ -34,6 +34,18 @@ teststack:
 	docker compose run --rm tester -q && \
 	docker compose down -v
 
+.PHONY: ci-local
+ci-local:
+	# Emulate CI workflow locally
+	cd tests && docker compose down -v || true
+	cd tests && docker compose up -d db wordpress varnish
+	# Wait for wordpress health
+	bash -lc 'cd tests; for i in {1..120}; do WP=$$(docker inspect -f {{.State.Health.Status}} $$(docker compose ps -q wordpress) || true); echo wordpress=$$WP; if [ "$$WP" = healthy ]; then break; fi; sleep 2; done'
+	# Probe varnish from within wordpress
+	bash -lc 'cd tests; for i in {1..60}; do if docker compose exec -T wordpress bash -lc "curl -fsS http://varnish/ >/dev/null"; then echo Varnish reachable; break; fi; sleep 2; done'
+	cd tests && bash setup.sh
+	cd tests && docker compose up --exit-code-from tester --abort-on-container-exit tester | cat
+
 logs:
 	cd tests && docker compose logs -f | cat
 

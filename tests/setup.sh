@@ -10,15 +10,18 @@ until docker compose exec -T wordpress curl -sSf http://localhost/wp-admin/insta
   sleep 3
 done
 
-if ! wp core is-installed --url="http://host.docker.internal:8080"; then
+if ! wp core is-installed --url="http://localhost:8080"; then
   wp core install \
-    --url="http://host.docker.internal:8080" \
+    --url="http://localhost:8080" \
     --title="Varnish Test" \
     --admin_user=admin \
     --admin_password=admin \
     --admin_email=admin@example.com \
     --skip-email
 fi
+
+# Ensure uploads directory is writable to avoid install-time warnings
+docker compose exec -T wordpress bash -lc 'mkdir -p /var/www/html/wp-content/uploads && chown -R www-data:www-data /var/www/html/wp-content/uploads'
 
 # Set pretty permalinks for plugin requirement
 wp rewrite structure '/%postname%/' --hard

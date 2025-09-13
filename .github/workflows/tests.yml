@@ -9,7 +9,7 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,6 +21,21 @@ jobs:
         working-directory: tests
         run: docker compose up -d db wordpress varnish
 
+      - name: Wait for services to be healthy
+        working-directory: tests
+        run: |
+          # Wait until both wordpress and varnish report healthy
+          for i in {1..120}; do
+            WP=$(docker inspect -f '{{.State.Health.Status}}' $(docker compose ps -q wordpress) || true)
+            echo "wordpress=$WP"
+            if [ "$WP" = "healthy" ]; then
+              break; fi; sleep 2; done
+          # Probe varnish from within the wordpress container until it responds
+          for i in {1..60}; do
+            if docker compose exec -T wordpress bash -lc "curl -fsS http://varnish/ >/dev/null"; then
+              echo "Varnish reachable"; break; fi; sleep 2; done
+          docker compose ps | cat
+
       - name: WP Setup
         working-directory: tests
         run: bash setup.sh
@@ -28,7 +43,7 @@ jobs:
       - name: Run tests (compose up with exit code)
         working-directory: tests
         env:
-          WP_URL: http://host.docker.internal:8080
+          WP_URL: http://varnish
           WP_BACKEND_URL: http://wordpress
         run: docker compose up --exit-code-from tester --abort-on-container-exit tester
 
