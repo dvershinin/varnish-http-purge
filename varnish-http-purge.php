@@ -447,7 +447,7 @@ class VarnishPurger {
 				'parent' => 'purge-varnish-cache',
 				'id'     => 'purge-varnish-cache-this',
 				'title'  => __( 'Purge Cache (This Page)', 'varnish-http-purge' ),
-				'href'   => wp_nonce_url( add_query_arg( 'vhp_flush_do', $page_url . '/' ), 'vhp-flush-do' ),
+				'href'   => wp_nonce_url( add_query_arg( 'vhp_flush_do', user_trailingslashit( $page_url ) ), 'vhp-flush-do' ),
 				'meta'   => array(
 					'title' => __( 'Purge Cache (This Page)', 'varnish-http-purge' ),
 				),
@@ -460,6 +460,7 @@ class VarnishPurger {
 			}
 		}
 	}
+
 
 	/**
 	 * Get the icon as SVG.
@@ -1019,7 +1020,7 @@ class VarnishPurger {
 			array_push(
 				$listofurls,
 				get_rest_url(),
-				$this->the_home_url() . '/'
+				user_trailingslashit( $this->the_home_url() )
 			);
 			if ( 'page' === get_site_option( 'show_on_front' ) ) {
 				// Ensure we have a page_for_posts setting to avoid empty URL.
