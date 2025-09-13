@@ -5,7 +5,8 @@ import pytest
 from urllib.parse import urlparse, urlunparse
 
 WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
-WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", "http://wordpress")
+# Prefer explicitly provided backend URL, otherwise fall back to the public URL
+WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", WP_URL)
 API_BASE = f"{WP_BACKEND_URL}/wp-json/test/v1"
 _parsed = urlparse(WP_URL)
 HOST_HEADER_VALUE = "localhost:8080" if _parsed.hostname == "varnish" else _parsed.netloc
@@ -35,8 +36,18 @@ def wait_http_ok(url: str, timeout: float = 60.0, headers=None, accept_codes=Non
 
 @pytest.fixture(scope="session", autouse=True)
 def ensure_up():
-    # Ensure WordPress backend is up (Varnish will be hit in tests with retries)
-    wait_http_ok(WP_BACKEND_URL, timeout=90.0)
+    # Ensure WordPress backend is up and Varnish (public URL) responds, too
+    # Be tolerant to redirects/403/503 during warmup
+    try:
+        wait_http_ok(WP_BACKEND_URL, timeout=120.0)
+    except Exception:
+        # In environments without a distinct backend, WP_BACKEND_URL may be same as WP_URL
+        pass
+    try:
+        wait_http_ok(WP_URL, timeout=120.0, headers=_host_headers())
+    except Exception:
+        # Allow tests to proceed; individual tests include retries
+        pass
 
 
 @pytest.fixture()
