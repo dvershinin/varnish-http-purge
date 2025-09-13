@@ -29,9 +29,16 @@ jobs:
           echo "# wordpress networks:" 
           docker inspect -f '{{json .NetworkSettings.Networks}}' $(docker compose -p vhp ps -q wordpress)
           echo "# varnish networks:"
-          docker inspect -f '{{json .NetworkSettings.Networks}}' $(docker compose -p vhp ps -q varnish)
+          VID=$(docker compose -p vhp ps -q varnish || true)
+          if [ -n "$VID" ]; then
+            docker inspect -f '{{json .NetworkSettings.Networks}}' "$VID"
+          else
+            echo "varnish container not yet created"
+          fi
           echo "# vhp_net members:"
           docker network inspect vhp_net -f '{{json .Containers}}' || true
+          echo "# compose ps:"
+          docker compose -p vhp ps | cat
 
       - name: Wait for services to be healthy
         working-directory: tests
