@@ -85,6 +85,7 @@ services:
       - vhp_net
 
   varnish:
+    image: vhp/varnish-tests:ci
     build:
       context: ./varnish
     platform: linux/amd64
@@ -104,6 +105,7 @@ services:
           - varnish
 
   tester:
+    image: vhp/tester:ci
     build:
       context: .
       dockerfile: Dockerfile

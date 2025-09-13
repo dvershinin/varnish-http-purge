@@ -30,9 +30,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Docker layer cache (Buildx)
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('tests/Dockerfile', 'tests/varnish/Dockerfile', 'tests/varnish/default.vcl') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
       - name: Start DB and WordPress
         working-directory: tests
         run: docker compose -p vhp up -d db wordpress
+
+      - name: Pre-build tester and varnish images (cached)
+        working-directory: tests
+        run: |
+          docker buildx build --cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache --tag vhp/tester:ci -f Dockerfile .
+          docker buildx build --cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache --tag vhp/varnish-tests:ci -f varnish/Dockerfile varnish
 
       - name: Inspect networks (prove same network & DNS)
         working-directory: tests
