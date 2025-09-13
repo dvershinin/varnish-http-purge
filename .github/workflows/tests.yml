@@ -52,7 +52,7 @@ jobs:
 
       - name: Start Varnish (after WP is healthy)
         working-directory: tests
-        run: docker compose -p vhp up -d varnish
+        run: docker compose -p vhp up -d --build varnish
 
       - name: Wait for Varnish container running
         working-directory: tests
@@ -62,7 +62,19 @@ jobs:
           for i in {1..60}; do
             STATE=$(docker inspect -f '{{.State.Status}}' "$VID" || true)
             echo "varnish=$STATE"
-            if [ "$STATE" = "running" ]; then break; fi; sleep 2; done
+            if [ "$STATE" = "running" ]; then break; fi
+            if [ "$STATE" = "exited" ]; then
+              echo "== varnish logs =="
+              docker compose -p vhp logs --no-color varnish | tail -n 200 || true
+              echo "Attempting restart of varnish"
+              docker compose -p vhp up -d varnish || true
+            fi
+            sleep 2
+          done
+          FINAL=$(docker inspect -f '{{.State.Status}}' "$VID" || true)
+          if [ "$FINAL" != "running" ]; then
+            echo "Varnish failed to start (state=$FINAL). Showing logs:"; docker compose -p vhp logs --no-color varnish | tail -n 400 || true; exit 1
+          fi
           docker compose -p vhp ps | cat
 
       - name: Probe varnish from WordPress
