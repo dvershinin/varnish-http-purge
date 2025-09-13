@@ -17,20 +17,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Start stack
+      - name: Start stack (db, wordpress, varnish)
         working-directory: tests
-        run: docker compose up -d
+        run: docker compose up -d db wordpress varnish
 
       - name: WP Setup
         working-directory: tests
         run: bash setup.sh
 
-      - name: Run tests
+      - name: Run tests (compose up with exit code)
         working-directory: tests
         env:
           WP_URL: http://varnish
           WP_BACKEND_URL: http://wordpress
-        run: docker compose run --rm tester -q
+        run: docker compose up --exit-code-from tester --abort-on-container-exit tester
 
       - name: Show logs on failure
         if: failure()
