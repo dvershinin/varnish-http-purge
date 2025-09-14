@@ -37,6 +37,7 @@ services:
       WORDPRESS_CONFIG_EXTRA: |
         define('VHP_VARNISH_IP', 'varnish');
         define('VHP_DOMAINS', 'http://alt1.test,http://alt2.test');
+        define('VHP_EXCLUDED_POST_STATUSES', 'draft');
         define('WP_ENVIRONMENT_TYPE', 'development');
         define('DISABLE_WP_CRON', true);
         define('WP_DEBUG_DISPLAY', false);
@@ -78,6 +79,7 @@ services:
       WORDPRESS_CONFIG_EXTRA: |
         define('VHP_VARNISH_IP', 'varnish');
         define('VHP_DOMAINS', 'http://alt1.test,http://alt2.test');
+        define('VHP_EXCLUDED_POST_STATUSES', 'draft');
         define('WP_ENVIRONMENT_TYPE', 'development');
         define('DISABLE_WP_CRON', true);
         define('WP_DEBUG_DISPLAY', false);

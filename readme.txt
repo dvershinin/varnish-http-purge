@@ -135,6 +135,38 @@ You can change this value in your settings, or via the define VHP_VARNISH_MAXPOS
 
 Keep in mind, the count of 50 <em>does not</em> include category/tags, API, or RSS pages. It's just the sheer number of individual posts/pages you're trying to purge at once.
 
+= Can I prevent purges for drafts or other post statuses? =
+
+Yes. If your environment doesn't cache logged-in users and you want to avoid purge noise from autosaves/drafts, you can exclude specific statuses network‑wide via `wp-config.php` (multisite‑friendly).
+
+Add a define to exclude drafts:
+
+<code>
+define( 'VHP_EXCLUDED_POST_STATUSES', 'draft' );
+</code>
+
+Exclude multiple statuses (comma‑separated):
+
+<code>
+define( 'VHP_EXCLUDED_POST_STATUSES', 'draft,pending' );
+</code>
+
+Or pass an array:
+
+<code>
+define( 'VHP_EXCLUDED_POST_STATUSES', array( 'draft', 'pending' ) );
+</code>
+
+Developers can also use a filter to adjust the valid statuses programmatically:
+
+<code>
+add_filter( 'varnish_http_purge_valid_post_statuses', function( $statuses, $post_id ) {
+    return array_diff( $statuses, array( 'draft' ) );
+}, 10, 2 );
+</code>
+
+By default, the plugin considers these statuses for purge URL generation: `publish`, `private`, `trash`, `pending`, `draft`.
+
 = Can I delete the entire cache? =
 
 Yes. Click the 'Empty Cache' button on the "Right Now" Dashboard (see the screenshot if you can't find it). There's also an "Empty Cache" button on the admin toolbar.
@@ -262,6 +294,11 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.3.0 =
+* September 2025
+* New: `VHP_EXCLUDED_POST_STATUSES` define to exclude statuses (e.g. drafts) from purge triggers.
+* New: `varnish_http_purge_valid_post_statuses` filter to customize statuses programmatically.
 
 = 5.2.2 =
 * August 2024

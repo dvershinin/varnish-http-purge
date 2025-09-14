@@ -125,6 +125,21 @@ def test_vhp_domains_duplicates_urls_for_alternate_domains(fresh_post):
         assert False, "Expected MISS after update with VHP_DOMAINS configured"
 
 
+def test_excluded_draft_status_generates_no_urls():
+    # Create a draft post
+    c = requests.post(f"{API_BASE}/post", json={"status": "draft"}, headers=_host_headers())
+    c.raise_for_status()
+    data = c.json()
+    post_id = data["id"]
+
+    # Ask backend to generate purge URLs; expect none when drafts are excluded
+    gr = requests.post(f"{API_BASE}/purge", json={"post_id": post_id}, headers=_host_headers())
+    gr.raise_for_status()
+    generated = gr.json().get("generated", None)
+    assert isinstance(generated, list)
+    assert generated == []
+
+
 @pytest.mark.parametrize("mode,expect_miss", [
     ("old", False),
     ("new", True),

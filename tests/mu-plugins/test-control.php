@@ -70,10 +70,11 @@ add_action( 'rest_api_init', function() {
         'callback' => function( WP_REST_Request $req ) {
             $title = $req->get_param('title') ?: 'Test Title';
             $content = $req->get_param('content') ?: 'Test Content';
+            $status = $req->get_param('status') ?: 'publish';
             $post_id = wp_insert_post( array(
                 'post_title' => $title,
                 'post_content' => $content,
-                'post_status' => 'publish',
+                'post_status' => $status,
             ) );
             if ( is_wp_error( $post_id ) ) {
                 return $post_id;

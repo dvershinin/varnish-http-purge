@@ -70,6 +70,7 @@ class VarnishPurger {
 		defined( 'VHP_VARNISH_IP' ) || define( 'VHP_VARNISH_IP', false );
 		defined( 'VHP_DEVMODE' ) || define( 'VHP_DEVMODE', false );
 		defined( 'VHP_DOMAINS' ) || define( 'VHP_DOMAINS', false );
+		defined( 'VHP_EXCLUDED_POST_STATUSES' ) || define( 'VHP_EXCLUDED_POST_STATUSES', false );
 
 		// Development mode defaults to off.
 		self::$devmode = array(
@@ -858,6 +859,26 @@ class VarnishPurger {
 		 * the home page and any associated tags and categories
 		 */
 		$valid_post_status = array( 'publish', 'private', 'trash', 'pending', 'draft' );
+
+		// Allow excluding specific statuses via wp-config define (string with commas or array).
+		if ( defined( 'VHP_EXCLUDED_POST_STATUSES' ) && false !== VHP_EXCLUDED_POST_STATUSES && ! empty( VHP_EXCLUDED_POST_STATUSES ) ) {
+			$excluded_statuses = VHP_EXCLUDED_POST_STATUSES;
+			if ( is_string( $excluded_statuses ) ) {
+				$excluded_statuses = array_map( 'trim', explode( ',', $excluded_statuses ) );
+			}
+			if ( is_array( $excluded_statuses ) ) {
+				$valid_post_status = array_values( array_diff( $valid_post_status, $excluded_statuses ) );
+			}
+		}
+
+		/**
+		 * Filter the list of valid post statuses that trigger purge URL generation.
+		 *
+		 * @since 5.3.0
+		 * @param array $valid_post_status Current list of valid statuses.
+		 * @param int   $post_id           Post ID being purged.
+		 */
+		$valid_post_status = apply_filters( 'varnish_http_purge_valid_post_statuses', $valid_post_status, $post_id );
 		$this_post_status  = get_post_status( $post_id );
 
 		// Not all post types are created equal.
