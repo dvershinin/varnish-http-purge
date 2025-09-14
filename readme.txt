@@ -333,7 +333,13 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 * September 2025
 * New: `VHP_EXCLUDED_POST_STATUSES` define to exclude statuses (e.g. drafts) from purge triggers.
 * New: `varnish_http_purge_valid_post_statuses` filter to customize statuses programmatically.
-* Fix undefined variable $rest_api_route
+* Fix: REST URL generation for tags and custom taxonomies; respect `rest_base` and use term IDs.
+* Fix: Avoid booleans in generated URL lists for REST entries.
+* Fix: Correct WP version check (pre-4.7 only) for deactivation logic.
+* Fix: Correct per-host IP loop in purge header filtering.
+* Fix: Properly strip query strings when deduplicating purge URLs.
+* Fix: Debugger `wp_remote_get` args and header checks (Via header scalar/array).
+* Minor: Typo fix in Devmode settings message.
 
 = 5.2.1 =
 * January 2024

@@ -93,7 +93,7 @@ class VarnishStatus {
 		$active  = ( VHP_DEVMODE ) ? true : $active;
 		$expire  = time() + DAY_IN_SECONDS;
 		?>
-		<input type="hidden" name="vhp_varnish_devmode[expire]" value="<?php $expire; ?>" />
+		<input type="hidden" name="vhp_varnish_devmode[expire]" value="<?php echo esc_attr( $expire ); ?>" />
 		<input type="checkbox" name="vhp_varnish_devmode[active]" value="true" <?php disabled( VHP_DEVMODE ); ?> <?php checked( $active, true ); ?> />
 		<label for="vhp_varnish_devmode['active']">
 			<?php
@@ -129,7 +129,7 @@ class VarnishStatus {
 		} else {
 			$output['active'] = ( isset( $input['active'] ) ) ? $input['active'] : false;
 			$output['expire'] = ( isset( $input['expire'] ) && is_int( $input['expire'] ) ) ? $input['expire'] : $expire;
-			$set_message      = ( $output['active'] ) ? __( 'Development Mode activated for the next 24 hours.', 'varnish-http-purge' ) : __( 'Development Mode dectivated.', 'varnish-http-purge' );
+			$set_message      = ( $output['active'] ) ? __( 'Development Mode activated for the next 24 hours.', 'varnish-http-purge' ) : __( 'Development Mode deactivated.', 'varnish-http-purge' );
 			$set_type         = 'updated';
 		}
 

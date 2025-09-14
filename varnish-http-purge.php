@@ -126,7 +126,7 @@ class VarnishPurger {
 		}
 
 		// Failure: Pre WP 4.7.
-		if ( version_compare( get_bloginfo( 'version' ), '4.7', '<=' ) ) {
+		if ( version_compare( get_bloginfo( 'version' ), '4.7', '<' ) ) {
 			deactivate_plugins( plugin_basename( __FILE__ ) );
 			add_action( 'admin_notices', array( $this, 'require_wp_version_notice' ) );
 			return;
@@ -690,7 +690,7 @@ class VarnishPurger {
 		// Now apply filters
 		if ( is_array( $varniship ) ) {
 			// To each ship:
-			for ( $i = 0; $i++; $i < count( $varniship ) ) {
+			for ( $i = 0; $i < count( $varniship ); $i++ ) {
 				$varniship[ $i ] = apply_filters( 'vhp_varnish_ip', $varniship[ $i ] );
 			}
 		} else {
@@ -924,7 +924,7 @@ class VarnishPurger {
 			 * But we apparently have to force it for posts and pages (seriously?)
 			 */
 			if ( isset( $rest_api_route ) ) {
-				$post_type_object = get_post_type_object( $post_id );
+				$post_type_object = get_post_type_object( $this_post_type );
 				$rest_permalink   = false;
 				if ( isset( $post_type_object->rest_base ) ) {
 					$rest_permalink = get_rest_url() . $rest_api_route . '/' . $post_type_object->rest_base . '/' . $post_id . '/';
@@ -935,7 +935,9 @@ class VarnishPurger {
 				}
 
 				if ( isset( $rest_permalink ) ) {
-					array_push( $listofurls, $rest_permalink );
+					if ( is_string( $rest_permalink ) && $rest_permalink !== '' ) {
+						array_push( $listofurls, $rest_permalink );
+					}
 				}
 
 				// Category purge based on Donnacha's work in WP Super Cache.
@@ -953,15 +955,11 @@ class VarnishPurger {
 				// Tag purge based on Donnacha's work in WP Super Cache.
 				$tags = get_the_tags( $post_id );
 				if ( $tags ) {
-					$tag_base = get_site_option( 'tag_base' );
-					if ( '' === $tag_base ) {
-						$tag_base = '/tag/';
-					}
 					foreach ( $tags as $tag ) {
 						array_push(
 							$listofurls,
 							get_tag_link( $tag->term_id ),
-							get_rest_url() . $rest_api_route . $tag_base . $tag->term_id . '/'
+							get_rest_url() . $rest_api_route . '/tags/' . $tag->term_id . '/'
 						);
 					}
 				}
@@ -976,7 +974,7 @@ class VarnishPurger {
 								array_push(
 									$listofurls,
 									get_term_link( $term ),
-									get_rest_url() . $rest_api_route . '/' . $term->taxonomy . '/' . $term->slug . '/'
+									get_rest_url() . $rest_api_route . '/' . ( isset( $features['rest_base'] ) && ! empty( $features['rest_base'] ) ? $features['rest_base'] : $term->taxonomy ) . '/' . $term->term_id . '/'
 								);
 							}
 						}
@@ -1059,9 +1057,7 @@ class VarnishPurger {
 			return;
 		} else {
 			// Strip off query variables
-			foreach ( $listofurls as $url ) {
-				$url = strtok( $url, '?' );
-			}
+			$listofurls = array_map( function( $url ) { return strtok( $url, '?' ); }, $listofurls );
 
 			// If the DOMAINS setup is defined, we duplicate the URLs
 			if ( false !== VHP_DOMAINS ) {

@@ -7,6 +7,33 @@ Description: Minimal REST endpoints to aid e2e/pytest tests
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 add_action( 'rest_api_init', function() {
+    // Setup a custom post type and taxonomy for testing REST base handling
+    register_rest_route( 'test/v1', '/setup-cpt', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            register_post_type( 'book', array(
+                'label' => 'Books',
+                'public' => true,
+                'show_in_rest' => true,
+                'rest_base' => 'items',
+                'supports' => array( 'title', 'editor' ),
+                'has_archive' => true,
+            ) );
+
+            register_taxonomy( 'genre', array( 'book' ), array(
+                'label' => 'Genres',
+                'public' => true,
+                'show_in_rest' => true,
+                'rest_base' => 'genres',
+                'hierarchical' => false,
+            ) );
+
+            flush_rewrite_rules( false );
+            return array( 'ok' => true );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     register_rest_route( 'test/v1', '/permalinks', array(
         'methods' => 'POST',
         'callback' => function( WP_REST_Request $req ) {
@@ -71,15 +98,46 @@ add_action( 'rest_api_init', function() {
             $title = $req->get_param('title') ?: 'Test Title';
             $content = $req->get_param('content') ?: 'Test Content';
             $status = $req->get_param('status') ?: 'publish';
+            $type = $req->get_param('type') ?: 'post';
             $post_id = wp_insert_post( array(
                 'post_title' => $title,
                 'post_content' => $content,
                 'post_status' => $status,
+                'post_type' => $type,
             ) );
             if ( is_wp_error( $post_id ) ) {
                 return $post_id;
             }
-            return array( 'id' => $post_id, 'url' => get_permalink( $post_id ) );
+            // Optionally set tags
+            $tag_ids = array();
+            $tags = $req->get_param('tags');
+            if ( is_array( $tags ) && ! empty( $tags ) ) {
+                foreach ( $tags as $tag_name ) {
+                    $term = wp_insert_term( sanitize_text_field( $tag_name ), 'post_tag' );
+                    if ( ! is_wp_error( $term ) ) {
+                        $tag_ids[] = intval( $term['term_id'] );
+                    }
+                }
+                if ( ! empty( $tag_ids ) ) {
+                    wp_set_post_terms( $post_id, $tag_ids, 'post_tag', false );
+                }
+            }
+            // Optionally set genres (custom taxonomy)
+            $genre_ids = array();
+            $genres = $req->get_param('genres');
+            if ( is_array( $genres ) && ! empty( $genres ) ) {
+                foreach ( $genres as $genre_name ) {
+                    $term = wp_insert_term( sanitize_text_field( $genre_name ), 'genre' );
+                    if ( ! is_wp_error( $term ) ) {
+                        $genre_ids[] = intval( $term['term_id'] );
+                    }
+                }
+                if ( ! empty( $genre_ids ) ) {
+                    wp_set_post_terms( $post_id, $genre_ids, 'genre', false );
+                }
+            }
+
+            return array( 'id' => $post_id, 'url' => get_permalink( $post_id ), 'tag_ids' => $tag_ids, 'genre_ids' => $genre_ids );
         },
         'permission_callback' => '__return_true',
     ) );
@@ -105,6 +163,27 @@ add_action( 'rest_api_init', function() {
                 return array( 'ok' => true, 'purged' => $url );
             }
             if ( class_exists('VarnishPurger') && is_numeric( $post_id ) ) {
+                // Ensure CPT and taxonomy used in tests are registered in this request
+                $ptype = get_post_type( intval( $post_id ) );
+                if ( 'book' === $ptype && ! post_type_exists( 'book' ) ) {
+                    register_post_type( 'book', array(
+                        'label' => 'Books',
+                        'public' => true,
+                        'show_in_rest' => true,
+                        'rest_base' => 'items',
+                        'supports' => array( 'title', 'editor' ),
+                        'has_archive' => true,
+                    ) );
+                }
+                if ( ! taxonomy_exists( 'genre' ) ) {
+                    register_taxonomy( 'genre', array( 'book' ), array(
+                        'label' => 'Genres',
+                        'public' => true,
+                        'show_in_rest' => true,
+                        'rest_base' => 'genres',
+                        'hierarchical' => false,
+                    ) );
+                }
                 $vp = new VarnishPurger();
                 $urls = $vp->generate_urls( intval( $post_id ) );
                 return array( 'ok' => true, 'generated' => $urls );

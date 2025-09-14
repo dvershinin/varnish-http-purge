@@ -140,10 +140,8 @@ class VarnishDebug {
 		$url = esc_url( $url );
 
 		$args = array(
-			'headers' => array(
-				'timeout'     => 30,
-				'redirection' => 10,
-			),
+			'timeout'     => 30,
+			'redirection' => 10,
 		);
 
 		// Lazy run twice to make sure we get a primed cache page.
@@ -268,12 +266,16 @@ class VarnishDebug {
 
 			// Optional Headers.
 			$x_via = false;
-			if ( is_array( $headers['Via'] ) ) {
-				foreach ( $headers['Via'] as $header_via ) {
-					if ( is_numeric( strpos( $header_via, 'arnish' ) ) ) {
-						$x_via = true;
-						break;
+			if ( isset( $headers['Via'] ) ) {
+				if ( is_array( $headers['Via'] ) ) {
+					foreach ( $headers['Via'] as $header_via ) {
+						if ( is_numeric( strpos( $header_via, 'arnish' ) ) ) {
+							$x_via = true;
+							break;
+						}
 					}
+				} else {
+					$x_via = is_numeric( strpos( $headers['Via'], 'arnish' ) );
 				}
 			}
 			$x_cache   = ( isset( $headers['x-cache-status'] ) && strpos( $headers['x-cache-status'], 'HIT' ) !== false ) ? true : false;
