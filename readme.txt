@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.7
-Stable tag: 5.2.2
+Stable tag: 5.3.0
 Requires PHP: 5.6
 
 Automatically empty proxy cached content when your site is modified.
@@ -274,6 +274,40 @@ This is a question beyond the support of plugin. I do not have the resources ava
 * When flushing the whole cache, the plugin sends a PURGE command of <code>/.*</code> and sets the `X-Purge-Method` header to `regex`
 * Nginx expects the IP address to be 'localhost'
 
+= How do I pass a Varnish control key or auth header? =
+
+Some providers require a control key, token, or Authorization header to accept PURGE requests. The plugin doesn’t have a dedicated constant for this, but you can inject any required header via a filter.
+
+1. Set where PURGE requests should be sent (host:port, no scheme):
+
+<code>
+define( 'VHP_VARNISH_IP', 'varnish.example.com:6081' );
+</code>
+
+2. Add your control key/auth header via a small MU plugin so it loads on every request. Create <code>wp-content/mu-plugins/varnish-purge-auth.php</code> with:
+
+<code>
+<?php
+add_filter( 'varnish_http_purge_headers', function( $headers ) {
+    // Example: provider expects a custom key header
+    $headers['X-Control-Key'] = 'YOUR_CONTROL_KEY_HERE';
+
+    // Or use Authorization headers:
+    // $headers['Authorization'] = 'Basic ' . base64_encode( 'username:password' );
+    // $headers['Authorization'] = 'Bearer ' . 'YOUR_TOKEN_HERE';
+
+    return $headers;
+} );
+</code>
+
+If your provider requires HTTPS for the purge endpoint, force the schema:
+
+<code>
+add_filter( 'varnish_http_purge_schema', function() { return 'https://'; } );
+</code>
+
+Important: This plugin sends HTTP PURGE requests to your cache service. It does not use the Varnish management interface (varnishadm/secret on port 6082).
+
 = How can I see what the plugin is sending to the cache service? =
 
 Yes _IF_ the service has an interface. Sadly Nginx does not. [Detailed directions can be found on the debugging section on GitHub](https://github.com/dvershinin/varnish-http-purge/wiki). Bear in mind, these interfaces tend to be command-line only.
@@ -299,9 +333,6 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 * September 2025
 * New: `VHP_EXCLUDED_POST_STATUSES` define to exclude statuses (e.g. drafts) from purge triggers.
 * New: `varnish_http_purge_valid_post_statuses` filter to customize statuses programmatically.
-
-= 5.2.2 =
-* August 2024
 * Fix undefined variable $rest_api_route
 
 = 5.2.1 =
