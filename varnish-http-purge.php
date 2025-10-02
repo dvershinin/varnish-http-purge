@@ -73,6 +73,8 @@ class VarnishPurger {
 		defined( 'VHP_DOMAINS' ) || define( 'VHP_DOMAINS', false );
 		defined( 'VHP_EXCLUDED_POST_STATUSES' ) || define( 'VHP_EXCLUDED_POST_STATUSES', false );
 
+		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( &$this, 'settings_link' ) );
+
 		// Development mode defaults to off.
 		self::$devmode = array(
 			'active' => false,
@@ -271,6 +273,15 @@ class VarnishPurger {
 	public function admin_message_devmode() {
 		$message = ( VarnishDebug::devmode_check() ) ? __( 'Development Mode activated for the next 24 hours.', 'varnish-http-purge' ) : __( 'Development Mode deactivated.', 'varnish-http-purge' );
 		echo '<div id="message" class="notice notice-success fade is-dismissible"><p><strong>' . wp_kses_post( $message ) . '</strong></p></div>';
+	}
+
+	/**
+	 * Add settings link on plugin list
+	 */
+	public function settings_link( $links ) {
+		$settings_link = '<a href="admin.php?page=varnish-page">' . __( 'Settings', 'varnish-http-purge' ) . '</a>';
+		array_unshift( $links, $settings_link );
+		return $links;
 	}
 
 	/**
