@@ -76,7 +76,7 @@ class VarnishStatus {
 		// Purge All settings
 		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_name', array( &$this, 'settings_purgeheaders_name_sanitize' ) );
 		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_value', array( &$this, 'settings_purgeheaders_value_sanitize' ) );
-		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge Headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
+		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
 		add_settings_field( 'varnish_purgeheaders_name', __( 'Set purge header name', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_name_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
 		add_settings_field( 'varnish_purgeheaders_value', __( 'Set purge header value', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_value_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
 	}
