@@ -55,8 +55,8 @@ class VarnishStatus {
 	public function register_settings() {
 		// Development Mode Settings.
 		register_setting( 'vhp-settings-devmode', 'vhp_varnish_devmode', array( &$this, 'settings_devmode_sanitize' ) );
-		add_settings_section( 'vhp-settings-devmode-section', __( 'Development Mode Settings', 'varnish-http-purge' ), array( &$this, 'options_settings_devmode' ), 'varnish-devmode-settings' );
-		add_settings_field( 'varnish_devmode', __( 'Development Mode', 'varnish-http-purge' ), array( &$this, 'settings_devmode_callback' ), 'varnish-devmode-settings', 'vhp-settings-devmode-section' );
+		add_settings_section( 'vhp-settings-devmode-section', __( 'Development mode settings', 'varnish-http-purge' ), array( &$this, 'options_settings_devmode' ), 'varnish-devmode-settings' );
+		add_settings_field( 'varnish_devmode', __( 'Development mode', 'varnish-http-purge' ), array( &$this, 'settings_devmode_callback' ), 'varnish-devmode-settings', 'vhp-settings-devmode-section' );
 
 		// Purge Method settings (Cache Tags)
 		register_setting( 'vhp-settings-tags', 'vhp_varnish_use_tags', array( &$this, 'settings_tags_sanitize' ) );
@@ -65,13 +65,20 @@ class VarnishStatus {
 
 		// Purge All settings
 		register_setting( 'vhp-settings-maxposts', 'vhp_varnish_max_posts_before_all', array( &$this, 'settings_maxposts_sanitize' ) );
-		add_settings_section( 'vhp-settings-maxposts-section', __( 'Maximum Individual URLs before Full Purge', 'varnish-http-purge' ), array( &$this, 'options_settings_maxposts' ), 'varnish-maxposts-settings' );
-		add_settings_field( 'varnish_maxposts', __( 'Set Max URLs', 'varnish-http-purge' ), array( &$this, 'settings_maxposts_callback' ), 'varnish-maxposts-settings', 'vhp-settings-maxposts-section' );
+		add_settings_section( 'vhp-settings-maxposts-section', __( 'Maximum individual URLs before full purge', 'varnish-http-purge' ), array( &$this, 'options_settings_maxposts' ), 'varnish-maxposts-settings' );
+		add_settings_field( 'varnish_maxposts', __( 'Set max URLs', 'varnish-http-purge' ), array( &$this, 'settings_maxposts_callback' ), 'varnish-maxposts-settings', 'vhp-settings-maxposts-section' );
 
 		// IP Settings.
 		register_setting( 'vhp-settings-ip', 'vhp_varnish_ip', array( &$this, 'settings_ip_sanitize' ) );
-		add_settings_section( 'vhp-settings-ip-section', __( 'Configure Custom IP', 'varnish-http-purge' ), array( &$this, 'options_settings_ip' ), 'varnish-ip-settings' );
-		add_settings_field( 'varnish_ip', __( 'Set Custom IP', 'varnish-http-purge' ), array( &$this, 'settings_ip_callback' ), 'varnish-ip-settings', 'vhp-settings-ip-section' );
+		add_settings_section( 'vhp-settings-ip-section', __( 'Configure custom IP', 'varnish-http-purge' ), array( &$this, 'options_settings_ip' ), 'varnish-ip-settings' );
+		add_settings_field( 'varnish_ip', __( 'Set custom IP', 'varnish-http-purge' ), array( &$this, 'settings_ip_callback' ), 'varnish-ip-settings', 'vhp-settings-ip-section' );
+
+		// Purge All settings
+		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_name', array( &$this, 'settings_purgeheaders_name_sanitize' ) );
+		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_value', array( &$this, 'settings_purgeheaders_value_sanitize' ) );
+		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge Headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
+		add_settings_field( 'varnish_purgeheaders_name', __( 'Set purge header name', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_name_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
+		add_settings_field( 'varnish_purgeheaders_value', __( 'Set purge header value', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_value_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
 	}
 
 	/**
@@ -376,6 +383,7 @@ sub vcl_recv {
 		if ( $disabled ) {
 			esc_html_e( 'A Proxy Cache IP has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
 		} else {
+			echo '<br />';
 			esc_html_e( 'Examples: ', 'varnish-http-purge' );
 			echo '<br /><code>123.45.67.89</code><br /><code>localhost</code><br /><code>12.34.56.78, 23.45.67.89</code>';
 		}
@@ -418,6 +426,97 @@ sub vcl_recv {
 		}
 
 		add_settings_error( 'vhp_varnish_ip', 'varnish-ip', $set_message, $set_type );
+		return $output;
+	}
+
+	/**
+	 * Options Settings - Purge Headers
+	 */
+	public function options_settings_purgeheaders() {
+		?>
+		<p><a name="#configurepurgeheaders"></a><?php esc_html_e( 'Some providers require a control key, token, or Authorization header to accept PURGE requests. You can set the header name and its value here.', 'varnish-http-purge' ); ?></strong></p>
+		<?php
+	}
+
+	/**
+	 * Settings - Purge Headers Name
+	 */
+	public function settings_purgeheaders_name_callback() {
+
+		$disabled = false;
+		if ( defined( 'VHP_VARNISH_HEADER' ) && false !== VHP_VARNISH_HEADER ) {
+			$disabled    = true;
+			$header_name = explode( ':', VHP_VARNISH_HEADER )[0];
+		} else {
+			$header_name = get_site_option( 'vhp_varnish_header_name' );
+		}
+
+		?>
+		<input type="text" id="vph_varnish_header_name" name="vhp_varnish_header_name" value="<?php echo esc_attr( $header_name ); ?>" size="25" <?php disabled( $disabled, true ); ?> />
+		<label for="vph_varnish_header_name">&nbsp;
+		<?php
+		if ( $disabled ) {
+			esc_html_e( 'The header has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
+		}
+		echo '</label>';
+	}
+
+	/**
+	 * Settings - Purge Headers Value
+	 */
+	public function settings_purgeheaders_value_callback() {
+
+		$disabled = false;
+		if ( defined( 'VHP_VARNISH_HEADER' ) && false !== VHP_VARNISH_HEADER ) {
+			$disabled     = true;
+			$header_value = trim( explode( ':', VHP_VARNISH_HEADER )[1] );
+		} else {
+			$header_value = get_site_option( 'vhp_varnish_header_value' );
+		}
+
+		?>
+		<input type="password" id="vph_varnish_header_value" name="vhp_varnish_header_value" value="<?php echo esc_attr( $header_value ); ?>" size="25" <?php disabled( $disabled, true ); ?> autocomplete="off" />
+		<label for="vph_varnish_header_value">&nbsp;
+		<?php
+		if ( $disabled ) {
+			esc_html_e( 'The value has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
+		}
+		echo '</label>';
+	}
+
+	public function settings_purgeheaders_name_sanitize( $input ) {
+		$output      = '';
+		$set_message = __( 'You have entered an invalid header name.', 'varnish-http-purge' );
+		$set_type    = 'error';
+
+		if ( empty( $input ) ) {
+			return;
+		}
+		if ( is_string( $input ) ) {
+			$set_message = __( 'Purge header updated', 'varnish-http-purge' );
+			$set_type    = 'updated';
+			$output      = sanitize_text_field( $input );
+		}
+
+		add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
+		return $output;
+	}
+
+	public function settings_purgeheaders_value_sanitize( $input ) {
+		$output      = '';
+		$set_message = __( 'You have entered an invalid header value.', 'varnish-http-purge' );
+		$set_type    = 'error';
+
+		if ( empty( $input ) ) {
+			return;
+		}
+		if ( is_string( $input ) ) {
+			$set_message = __( 'Purge header value updated', 'varnish-http-purge' );
+			$set_type    = 'updated';
+			$output      = sanitize_text_field( $input );
+		}
+
+		add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
 		return $output;
 	}
 
@@ -620,7 +719,7 @@ sub vcl_recv {
 				<?php
 					settings_fields( 'vhp-settings-devmode' );
 					do_settings_sections( 'varnish-devmode-settings' );
-					submit_button( __( 'Save Devmode Settings', 'varnish-http-purge' ), 'primary' );
+					submit_button( __( 'Save devmode settings', 'varnish-http-purge' ), 'primary' );
 				?>
 				</form>
 
@@ -636,7 +735,7 @@ sub vcl_recv {
 				<?php
 					settings_fields( 'vhp-settings-maxposts' );
 					do_settings_sections( 'varnish-maxposts-settings' );
-					submit_button( __( 'Save Maxposts Settings', 'varnish-http-purge' ), 'primary' );
+					submit_button( __( 'Save maxposts settings', 'varnish-http-purge' ), 'primary' );
 				?>
 				</form>
 
@@ -644,8 +743,16 @@ sub vcl_recv {
 				<?php
 					settings_fields( 'vhp-settings-ip' );
 					do_settings_sections( 'varnish-ip-settings' );
-					submit_button( __( 'Save IP Settings', 'varnish-http-purge' ), 'secondary' );
+					submit_button( __( 'Save IP settings', 'varnish-http-purge' ), 'secondary' );
 				?>
+				</form>
+
+				<form action="options.php" method="POST" >
+					<?php
+					settings_fields( 'vhp-settings-purgeheader' );
+					do_settings_sections( 'varnish-purgeheader-settings' );
+					submit_button( __( 'Save purge header settings', 'varnish-http-purge' ), 'primary' );
+					?>
 				</form>
 				<?php
 			} else {

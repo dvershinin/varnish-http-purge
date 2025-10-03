@@ -309,7 +309,12 @@ This is a question beyond the support of this plugin. I do not have the resource
 
 = How do I pass a Varnish control key or auth header? =
 
-Some providers require a control key, token, or Authorization header to accept PURGE requests. The plugin doesn’t have a dedicated constant for this, but you can inject any required header via a filter.
+Some providers require a control key, token, or Authorization header to accept PURGE requests. You can set a header name and value via the settings page or via the following constant:
+<code>
+define( 'VHP_VARNISH_HEADER', 'X-Control-Key: YOUR_CONTROL_KEY_HERE' );
+</code>
+
+Alternatively, you can inject any required header via a filter.
 
 1. Set where PURGE requests should be sent (host:port, no scheme):
 
@@ -326,8 +331,8 @@ add_filter( 'varnish_http_purge_headers', function( $headers ) {
     $headers['X-Control-Key'] = 'YOUR_CONTROL_KEY_HERE';
 
     // Or use Authorization headers:
-    // $headers['Authorization'] = 'Basic ' . base64_encode( 'username:password' );
-    // $headers['Authorization'] = 'Bearer ' . 'YOUR_TOKEN_HERE';
+    $headers['Authorization'] = 'Basic ' . base64_encode( 'username:password' );
+    $headers['Authorization'] = 'Bearer ' . 'YOUR_TOKEN_HERE';
 
     return $headers;
 } );

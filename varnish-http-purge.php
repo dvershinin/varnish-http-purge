@@ -71,6 +71,7 @@ class VarnishPurger {
 		defined( 'VHP_VARNISH_IP' ) || define( 'VHP_VARNISH_IP', false );
 		defined( 'VHP_DEVMODE' ) || define( 'VHP_DEVMODE', false );
 		defined( 'VHP_DOMAINS' ) || define( 'VHP_DOMAINS', false );
+		defined( 'VHP_VARNISH_HEADER' ) || define( 'VHP_VARNISH_HEADER', false );
 		defined( 'VHP_EXCLUDED_POST_STATUSES' ) || define( 'VHP_EXCLUDED_POST_STATUSES', false );
 
 		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( &$this, 'settings_link' ) );
@@ -788,6 +789,26 @@ class VarnishPurger {
 			 */
 			$purgeme = apply_filters( 'vhp_purgeme_path', $purgeme, $schema, $one_host, $path, $pregex, $p );
 
+			$default_headers = array(
+				'host'           => $host_headers,
+				'X-Purge-Method' => $x_purge_method,
+			);
+			if ( VHP_VARNISH_HEADER && strpos( VHP_VARNISH_HEADER, ':' ) !== false ) {
+				// If this is set, extract name/value.
+				$header_parts        = explode( ':', VHP_VARNISH_HEADER, 2 );
+				$custom_header_name  = trim( $header_parts[0] );
+				$custom_header_value = ( isset( $header_parts[1] ) ) ? trim( $header_parts[1] ) : '';
+				if ( ! empty( $custom_header_name ) && ! empty( $custom_header_value ) ) {
+					$default_headers[ $custom_header_name ] = $custom_header_value;
+				}
+			} elseif ( get_site_option( 'vhp_varnish_header_value' ) && get_site_option( 'vhp_varnish_header_name' ) ) {
+				$custom_header_name  = trim( get_site_option( 'vhp_varnish_header_name' ) );
+				$custom_header_value = trim( get_site_option( 'vhp_varnish_header_value' ) );
+				if ( ! empty( $custom_header_name ) && ! empty( $custom_header_value ) ) {
+					$default_headers[ $custom_header_name ] = $custom_header_value;
+				}
+			}
+
 			/**
 			 * Filters the HTTP headers to send with a PURGE request.
 			 *
@@ -795,10 +816,7 @@ class VarnishPurger {
 			 */
 			$headers = apply_filters(
 				'varnish_http_purge_headers',
-				array(
-					'host'           => $host_headers,
-					'X-Purge-Method' => $x_purge_method,
-				)
+				$default_headers,
 			);
 
 			// Send response.
