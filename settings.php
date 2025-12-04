@@ -447,7 +447,7 @@ sub vcl_recv {
 	 */
 	public function options_settings_purgeheaders() {
 		?>
-		<p><a name="#configurepurgeheaders"></a>
+		<p><a id="configurepurgeheaders"></a>
 			<strong><?php esc_html_e( 'Advanced:', 'varnish-http-purge' ); ?></strong>
 			<?php esc_html_e( 'Only configure this if your hosting provider or cache service explicitly documents a required control or Authorization header for PURGE requests. If you are not sure, leave these fields empty.', 'varnish-http-purge' ); ?>
 		</p>
@@ -468,8 +468,8 @@ sub vcl_recv {
 		}
 
 		?>
-		<input type="text" id="vph_varnish_header_name" name="vhp_varnish_header_name" value="<?php echo esc_attr( $header_name ); ?>" size="25" <?php disabled( $disabled, true ); ?> />
-		<label for="vph_varnish_header_name">&nbsp;
+		<input type="text" id="vhp_varnish_header_name" name="vhp_varnish_header_name" value="<?php echo esc_attr( $header_name ); ?>" size="25" <?php disabled( $disabled, true ); ?> />
+		<label for="vhp_varnish_header_name">&nbsp;
 		<?php
 		if ( $disabled ) {
 			esc_html_e( 'The header has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
@@ -485,14 +485,27 @@ sub vcl_recv {
 		$disabled = false;
 		if ( defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) && false !== VHP_VARNISH_EXTRA_PURGE_HEADER ) {
 			$disabled     = true;
-			$header_value = trim( explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER )[1] );
+			$header_value = '';
+
+			if ( strpos( VHP_VARNISH_EXTRA_PURGE_HEADER, ':' ) !== false ) {
+				$parts = explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER, 2 );
+				if ( isset( $parts[1] ) ) {
+					$header_value = trim( $parts[1] );
+				}
+			}
+
+			// If the constant is malformed (no value part), fall back to the stored option
+			// so that the field still displays something meaningful.
+			if ( '' === $header_value ) {
+				$header_value = get_site_option( 'vhp_varnish_header_value' );
+			}
 		} else {
 			$header_value = get_site_option( 'vhp_varnish_header_value' );
 		}
 
 		?>
-		<input type="password" id="vph_varnish_header_value" name="vhp_varnish_header_value" value="<?php echo esc_attr( $header_value ); ?>" size="25" <?php disabled( $disabled, true ); ?> autocomplete="off" />
-		<label for="vph_varnish_header_value">&nbsp;
+		<input type="password" id="vhp_varnish_header_value" name="vhp_varnish_header_value" value="<?php echo esc_attr( $header_value ); ?>" size="25" <?php disabled( $disabled, true ); ?> autocomplete="off" />
+		<label for="vhp_varnish_header_value">&nbsp;
 		<?php
 		if ( $disabled ) {
 			esc_html_e( 'The value has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
@@ -502,37 +515,43 @@ sub vcl_recv {
 
 	public function settings_purgeheaders_name_sanitize( $input ) {
 		$output      = '';
-		$set_message = __( 'You have entered an invalid header name.', 'varnish-http-purge' );
-		$set_type    = 'error';
+		$set_message = '';
+		$set_type    = 'updated';
 
-		if ( empty( $input ) ) {
-			return;
-		}
-		if ( is_string( $input ) ) {
-			$set_message = __( 'Purge header updated', 'varnish-http-purge' );
-			$set_type    = 'updated';
+		if ( ! is_string( $input ) || '' === trim( $input ) ) {
+			// Treat empty or non-string input as a request to clear the header.
+			$set_message = __( 'Purge header name cleared.', 'varnish-http-purge' );
+			$output      = '';
+		} else {
+			$set_message = __( 'Purge header name updated.', 'varnish-http-purge' );
 			$output      = sanitize_text_field( $input );
 		}
 
-		add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
+		if ( $set_message ) {
+			add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
+		}
+
 		return $output;
 	}
 
 	public function settings_purgeheaders_value_sanitize( $input ) {
 		$output      = '';
-		$set_message = __( 'You have entered an invalid header value.', 'varnish-http-purge' );
-		$set_type    = 'error';
+		$set_message = '';
+		$set_type    = 'updated';
 
-		if ( empty( $input ) ) {
-			return;
-		}
-		if ( is_string( $input ) ) {
-			$set_message = __( 'Purge header value updated', 'varnish-http-purge' );
-			$set_type    = 'updated';
+		if ( ! is_string( $input ) || '' === trim( $input ) ) {
+			// Treat empty or non-string input as a request to clear the header value.
+			$set_message = __( 'Purge header value cleared.', 'varnish-http-purge' );
+			$output      = '';
+		} else {
+			$set_message = __( 'Purge header value updated.', 'varnish-http-purge' );
 			$output      = sanitize_text_field( $input );
 		}
 
-		add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
+		if ( $set_message ) {
+			add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
+		}
+
 		return $output;
 	}
 
