@@ -311,7 +311,7 @@ This is a question beyond the support of this plugin. I do not have the resource
 
 Some providers require a control key, token, or Authorization header to accept PURGE requests. You can set a header name and value via the settings page or via the following constant:
 <code>
-define( 'VHP_VARNISH_HEADER', 'X-Control-Key: YOUR_CONTROL_KEY_HERE' );
+define( 'VHP_VARNISH_EXTRA_PURGE_HEADER', 'X-Control-Key: YOUR_CONTROL_KEY_HERE' );
 </code>
 
 Alternatively, you can inject any required header via a filter.

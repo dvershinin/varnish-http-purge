@@ -56,8 +56,8 @@ def test_default_purge_headers_have_no_custom_control_key():
 def test_purge_headers_respect_site_options_when_no_constant():
     """
     When a header name/value is configured via site options and no
-    VHP_VARNISH_HEADER constant is defined, the plugin should include that
-    header on PURGE requests.
+    VHP_VARNISH_EXTRA_PURGE_HEADER constant is defined, the plugin should
+    include that header on PURGE requests.
     """
     # Configure a simple control key header via the MU helper.
     name = "X-Control-Key"

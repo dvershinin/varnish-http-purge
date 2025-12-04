@@ -207,7 +207,7 @@ sub vcl_recv {
     if (req.method == "PURGE") {
         # ... acl check ...
         # Optional: validate a control header sent by the plugin (for example
-        # via the VHP_VARNISH_HEADER constant or the "Purge Headers" settings).
+        # via the VHP_VARNISH_EXTRA_PURGE_HEADER constant or the "Purge Headers" settings).
         # Adjust the header name and value to match your environment.
         #
         # if (req.http.X-Control-Key != "YOUR_CONTROL_KEY_HERE") {
@@ -460,9 +460,9 @@ sub vcl_recv {
 	public function settings_purgeheaders_name_callback() {
 
 		$disabled = false;
-		if ( defined( 'VHP_VARNISH_HEADER' ) && false !== VHP_VARNISH_HEADER ) {
+		if ( defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) && false !== VHP_VARNISH_EXTRA_PURGE_HEADER ) {
 			$disabled    = true;
-			$header_name = explode( ':', VHP_VARNISH_HEADER )[0];
+			$header_name = explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER )[0];
 		} else {
 			$header_name = get_site_option( 'vhp_varnish_header_name' );
 		}
@@ -483,9 +483,9 @@ sub vcl_recv {
 	public function settings_purgeheaders_value_callback() {
 
 		$disabled = false;
-		if ( defined( 'VHP_VARNISH_HEADER' ) && false !== VHP_VARNISH_HEADER ) {
+		if ( defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) && false !== VHP_VARNISH_EXTRA_PURGE_HEADER ) {
 			$disabled     = true;
-			$header_value = trim( explode( ':', VHP_VARNISH_HEADER )[1] );
+			$header_value = trim( explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER )[1] );
 		} else {
 			$header_value = get_site_option( 'vhp_varnish_header_value' );
 		}

@@ -71,7 +71,7 @@ class VarnishPurger {
 		defined( 'VHP_VARNISH_IP' ) || define( 'VHP_VARNISH_IP', false );
 		defined( 'VHP_DEVMODE' ) || define( 'VHP_DEVMODE', false );
 		defined( 'VHP_DOMAINS' ) || define( 'VHP_DOMAINS', false );
-		defined( 'VHP_VARNISH_HEADER' ) || define( 'VHP_VARNISH_HEADER', false );
+		defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) || define( 'VHP_VARNISH_EXTRA_PURGE_HEADER', false );
 		defined( 'VHP_EXCLUDED_POST_STATUSES' ) || define( 'VHP_EXCLUDED_POST_STATUSES', false );
 
 		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( &$this, 'settings_link' ) );
@@ -793,9 +793,9 @@ class VarnishPurger {
 				'host'           => $host_headers,
 				'X-Purge-Method' => $x_purge_method,
 			);
-			if ( VHP_VARNISH_HEADER && strpos( VHP_VARNISH_HEADER, ':' ) !== false ) {
+			if ( VHP_VARNISH_EXTRA_PURGE_HEADER && strpos( VHP_VARNISH_EXTRA_PURGE_HEADER, ':' ) !== false ) {
 				// If this is set, extract name/value.
-				$header_parts        = explode( ':', VHP_VARNISH_HEADER, 2 );
+				$header_parts        = explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER, 2 );
 				$custom_header_name  = trim( $header_parts[0] );
 				$custom_header_value = ( isset( $header_parts[1] ) ) ? trim( $header_parts[1] ) : '';
 				if ( ! empty( $custom_header_name ) && ! empty( $custom_header_value ) ) {
