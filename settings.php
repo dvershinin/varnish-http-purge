@@ -74,8 +74,8 @@ class VarnishStatus {
 		add_settings_field( 'varnish_ip', __( 'Set Custom IP', 'varnish-http-purge' ), array( &$this, 'settings_ip_callback' ), 'varnish-ip-settings', 'vhp-settings-ip-section' );
 
 		// Purge Headers settings.
-		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_name', array( &$this, 'settings_purgeheaders_name_sanitize' ) );
-		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_value', array( &$this, 'settings_purgeheaders_value_sanitize' ) );
+		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_extra_purge_header_name', array( &$this, 'settings_purgeheaders_name_sanitize' ) );
+		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_extra_purge_header_value', array( &$this, 'settings_purgeheaders_value_sanitize' ) );
 		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge Headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
 		add_settings_field( 'varnish_purgeheaders_name', __( 'Set Purge Header Name', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_name_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
 		add_settings_field( 'varnish_purgeheaders_value', __( 'Set Purge Header Value', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_value_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
@@ -464,12 +464,12 @@ sub vcl_recv {
 			$disabled    = true;
 			$header_name = explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER )[0];
 		} else {
-			$header_name = get_site_option( 'vhp_varnish_header_name' );
+			$header_name = get_site_option( 'vhp_varnish_extra_purge_header_name' );
 		}
 
 		?>
-		<input type="text" id="vhp_varnish_header_name" name="vhp_varnish_header_name" value="<?php echo esc_attr( $header_name ); ?>" size="25" <?php disabled( $disabled, true ); ?> />
-		<label for="vhp_varnish_header_name">&nbsp;
+		<input type="text" id="vhp_varnish_extra_purge_header_name" name="vhp_varnish_extra_purge_header_name" value="<?php echo esc_attr( $header_name ); ?>" size="25" <?php disabled( $disabled, true ); ?> />
+		<label for="vhp_varnish_extra_purge_header_name">&nbsp;
 		<?php
 		if ( $disabled ) {
 			esc_html_e( 'The header has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
@@ -497,15 +497,15 @@ sub vcl_recv {
 			// If the constant is malformed (no value part), fall back to the stored option
 			// so that the field still displays something meaningful.
 			if ( '' === $header_value ) {
-				$header_value = get_site_option( 'vhp_varnish_header_value' );
+				$header_value = get_site_option( 'vhp_varnish_extra_purge_header_value' );
 			}
 		} else {
-			$header_value = get_site_option( 'vhp_varnish_header_value' );
+			$header_value = get_site_option( 'vhp_varnish_extra_purge_header_value' );
 		}
 
 		?>
-		<input type="password" id="vhp_varnish_header_value" name="vhp_varnish_header_value" value="<?php echo esc_attr( $header_value ); ?>" size="25" <?php disabled( $disabled, true ); ?> autocomplete="off" />
-		<label for="vhp_varnish_header_value">&nbsp;
+		<input type="password" id="vhp_varnish_extra_purge_header_value" name="vhp_varnish_extra_purge_header_value" value="<?php echo esc_attr( $header_value ); ?>" size="25" <?php disabled( $disabled, true ); ?> autocomplete="off" />
+		<label for="vhp_varnish_extra_purge_header_value">&nbsp;
 		<?php
 		if ( $disabled ) {
 			esc_html_e( 'The value has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
@@ -528,7 +528,7 @@ sub vcl_recv {
 		}
 
 		if ( $set_message ) {
-			add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
+			add_settings_error( 'vhp_varnish_extra_purge_header_name', 'varnish-purgeheader', $set_message, $set_type );
 		}
 
 		return $output;
@@ -549,7 +549,7 @@ sub vcl_recv {
 		}
 
 		if ( $set_message ) {
-			add_settings_error( 'vhp_varnish_header_name', 'varnish-purgeheader', $set_message, $set_type );
+			add_settings_error( 'vhp_varnish_extra_purge_header_value', 'varnish-purgeheader', $set_message, $set_type );
 		}
 
 		return $output;

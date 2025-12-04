@@ -801,9 +801,9 @@ class VarnishPurger {
 				if ( ! empty( $custom_header_name ) && ! empty( $custom_header_value ) ) {
 					$default_headers[ $custom_header_name ] = $custom_header_value;
 				}
-			} elseif ( get_site_option( 'vhp_varnish_header_value' ) && get_site_option( 'vhp_varnish_header_name' ) ) {
-				$custom_header_name  = trim( get_site_option( 'vhp_varnish_header_name' ) );
-				$custom_header_value = trim( get_site_option( 'vhp_varnish_header_value' ) );
+			} elseif ( get_site_option( 'vhp_varnish_extra_purge_header_value' ) && get_site_option( 'vhp_varnish_extra_purge_header_name' ) ) {
+				$custom_header_name  = trim( get_site_option( 'vhp_varnish_extra_purge_header_name' ) );
+				$custom_header_value = trim( get_site_option( 'vhp_varnish_extra_purge_header_value' ) );
 				if ( ! empty( $custom_header_name ) && ! empty( $custom_header_value ) ) {
 					$default_headers[ $custom_header_name ] = $custom_header_value;
 				}

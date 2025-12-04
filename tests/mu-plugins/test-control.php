@@ -221,7 +221,7 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
-    // Configure custom purge header name/value for tests.
+            // Configure custom purge header name/value for tests.
     register_rest_route( 'test/v1', '/purge-header-options', array(
         'methods' => 'POST',
         'callback' => function( WP_REST_Request $req ) {
@@ -230,25 +230,25 @@ add_action( 'rest_api_init', function() {
 
             // When either value is not a string, treat this as a reset to defaults.
             if ( ! is_string( $name ) || ! is_string( $value ) ) {
-                delete_site_option( 'vhp_varnish_header_name' );
-                delete_site_option( 'vhp_varnish_header_value' );
+                        delete_site_option( 'vhp_varnish_extra_purge_header_name' );
+                        delete_site_option( 'vhp_varnish_extra_purge_header_value' );
             } else {
                 $name  = trim( $name );
                 $value = trim( $value );
 
                 if ( '' === $name || '' === $value ) {
-                    delete_site_option( 'vhp_varnish_header_name' );
-                    delete_site_option( 'vhp_varnish_header_value' );
+                            delete_site_option( 'vhp_varnish_extra_purge_header_name' );
+                            delete_site_option( 'vhp_varnish_extra_purge_header_value' );
                 } else {
-                    update_site_option( 'vhp_varnish_header_name', sanitize_text_field( $name ) );
-                    update_site_option( 'vhp_varnish_header_value', sanitize_text_field( $value ) );
+                            update_site_option( 'vhp_varnish_extra_purge_header_name', sanitize_text_field( $name ) );
+                            update_site_option( 'vhp_varnish_extra_purge_header_value', sanitize_text_field( $value ) );
                 }
             }
 
             return array(
                 'ok'    => true,
-                'name'  => get_site_option( 'vhp_varnish_header_name' ),
-                'value' => get_site_option( 'vhp_varnish_header_value' ),
+                        'name'  => get_site_option( 'vhp_varnish_extra_purge_header_name' ),
+                        'value' => get_site_option( 'vhp_varnish_extra_purge_header_value' ),
             );
         },
         'permission_callback' => '__return_true',
