@@ -5,6 +5,8 @@ Requires at least: 5.0
 Tested up to: 6.9
 Stable tag: 5.3.0
 Requires PHP: 5.6
+License: Apache License 2.0
+License URI: https://www.apache.org/licenses/LICENSE-2.0
 
 Automatically empty proxy cached content when your site is modified.
 

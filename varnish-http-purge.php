@@ -6,7 +6,8 @@
  * Version: 5.3.0
  * Author: Mika Epstein, Danila Vershinin
  * Author URI: https://halfelf.org/
- * License: http://www.apache.org/licenses/LICENSE-2.0
+ * License: Apache License 2.0
+ * License URI: https://www.apache.org/licenses/LICENSE-2.0
  * Text Domain: varnish-http-purge
  * Network: true
  *
