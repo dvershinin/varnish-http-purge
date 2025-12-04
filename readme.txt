@@ -362,6 +362,12 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 
 == Changelog ==
 
+= 5.4.0 (2025-12) =
+* New (BETA): Optional Cache Tags / Surrogate Key purge mode, controlled via the "Use Cache Tags" setting.
+* New (BETA): Tag-mode enablement based on standard Surrogate-Capability headers from surrogates (Edge Architecture spec) or the `VHP_VARNISH_TAGS` wp-config define.
+* New: Admin UI improvements – properly associated labels for checkboxes and clearer explanatory copy.
+* Dev: Test VCL and pytest stack updated to cover tag-based purging behaviour.
+
 = 5.3.0 (2025-09) =
 * New: `VHP_EXCLUDED_POST_STATUSES` define to exclude statuses (e.g. drafts) from purge triggers.
 * New: `varnish_http_purge_valid_post_statuses` filter to customize statuses programmatically.
