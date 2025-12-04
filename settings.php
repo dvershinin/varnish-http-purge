@@ -196,12 +196,24 @@ class VarnishStatus {
 			echo '</p>';
 		}
 		?>
-		<details>
-			<summary><?php esc_html_e( 'View VCL Snippet (tags via BAN)', 'varnish-http-purge' ); ?></summary>
+		<div class="vhp-accordion vhp-accordion-vcl">
+			<button type="button" class="vhp-accordion-toggle" aria-expanded="false" aria-controls="vhp-accordion-panel-vcl">
+				<span class="dashicons dashicons-arrow-right" aria-hidden="true"></span>
+				<span class="vhp-accordion-label"><?php esc_html_e( 'View VCL Snippet (tags via BAN)', 'varnish-http-purge' ); ?></span>
+			</button>
+			<div id="vhp-accordion-panel-vcl" class="vhp-accordion-panel" hidden>
 			<pre style="background:#f0f0f0;padding:10px;overflow:auto;">
 sub vcl_recv {
     if (req.method == "PURGE") {
         # ... acl check ...
+        # Optional: validate a control header sent by the plugin (for example
+        # via the VHP_VARNISH_HEADER constant or the "Purge Headers" settings).
+        # Adjust the header name and value to match your environment.
+        #
+        # if (req.http.X-Control-Key != "YOUR_CONTROL_KEY_HERE") {
+        #     return (synth(403, "Forbidden"));
+        # }
+
         if (req.http.X-Purge-Method == "tags" && req.http.X-Cache-Tags-Pattern) {
             ban("obj.http.X-Cache-Tags ~ " + req.http.X-Cache-Tags-Pattern);
             return (synth(200, "Banned by tags pattern"));
@@ -209,7 +221,8 @@ sub vcl_recv {
     }
 }
 			</pre>
-		</details>
+			</div>
+		</div>
 		<?php
 	}
 
@@ -434,7 +447,10 @@ sub vcl_recv {
 	 */
 	public function options_settings_purgeheaders() {
 		?>
-		<p><a name="#configurepurgeheaders"></a><?php esc_html_e( 'Some providers require a control key, token, or Authorization header to accept PURGE requests. You can set the header name and its value here.', 'varnish-http-purge' ); ?></strong></p>
+		<p><a name="#configurepurgeheaders"></a>
+			<strong><?php esc_html_e( 'Advanced:', 'varnish-http-purge' ); ?></strong>
+			<?php esc_html_e( 'Only configure this if your hosting provider or cache service explicitly documents a required control or Authorization header for PURGE requests. If you are not sure, leave these fields empty.', 'varnish-http-purge' ); ?>
+		</p>
 		<?php
 	}
 
@@ -748,11 +764,17 @@ sub vcl_recv {
 				</form>
 
 				<form action="options.php" method="POST" >
-					<?php
-					settings_fields( 'vhp-settings-purgeheader' );
-					do_settings_sections( 'varnish-purgeheader-settings' );
-					submit_button( __( 'Save Purge Header Settings', 'varnish-http-purge' ), 'primary' );
-					?>
+					<?php settings_fields( 'vhp-settings-purgeheader' ); ?>
+					<div class="vhp-accordion vhp-accordion-purgeheaders">
+						<button type="button" class="vhp-accordion-toggle" aria-expanded="false" aria-controls="vhp-accordion-panel-purgeheaders">
+							<span class="dashicons dashicons-arrow-right" aria-hidden="true"></span>
+							<span class="vhp-accordion-label"><?php esc_html_e( 'Advanced: Purge Headers', 'varnish-http-purge' ); ?></span>
+						</button>
+						<div id="vhp-accordion-panel-purgeheaders" class="vhp-accordion-panel" hidden>
+							<?php do_settings_sections( 'varnish-purgeheader-settings' ); ?>
+						</div>
+					</div>
+					<?php submit_button( __( 'Save Purge Header Settings', 'varnish-http-purge' ), 'primary' ); ?>
 				</form>
 				<?php
 			} else {
@@ -763,6 +785,66 @@ sub vcl_recv {
 			}
 			?>
 		</div>
+		<style>
+		.vhp-accordion {
+			margin-top: 1.5em;
+			margin-bottom: 0.5em;
+		}
+		.vhp-accordion .vhp-accordion-toggle {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			font-size: 14px;
+			font-weight: 600;
+			margin: 0 0 0.5em 0;
+			background: none;
+			border: 0;
+			padding: 0;
+			color: #1d2327;
+			cursor: pointer;
+		}
+		.vhp-accordion .vhp-accordion-toggle:hover {
+			color: #2271b1;
+		}
+		.vhp-accordion .vhp-accordion-toggle .dashicons {
+			font-size: 16px;
+			line-height: 1;
+			transition: transform 0.15s ease-in-out;
+		}
+		.vhp-accordion .vhp-accordion-panel {
+			margin-left: 1.5em;
+		}
+		</style>
+		<script>
+		( function() {
+			document.addEventListener( 'DOMContentLoaded', function() {
+				var accordions = document.querySelectorAll( '.vhp-accordion' );
+				if ( ! accordions.length ) {
+					return;
+				}
+
+				accordions.forEach( function( container ) {
+					var button = container.querySelector( '.vhp-accordion-toggle' );
+					var panel  = container.querySelector( '.vhp-accordion-panel' );
+					if ( ! button || ! panel ) {
+						return;
+					}
+					var icon = button.querySelector( '.dashicons' );
+
+					button.addEventListener( 'click', function() {
+						var expanded = button.getAttribute( 'aria-expanded' ) === 'true';
+						button.setAttribute( 'aria-expanded', expanded ? 'false' : 'true' );
+						panel.hidden = expanded;
+
+						if ( icon ) {
+							icon.classList.toggle( 'dashicons-arrow-right', expanded );
+							icon.classList.toggle( 'dashicons-arrow-down', ! expanded );
+						}
+					} );
+				} );
+			} );
+		} )();
+		</script>
 		<?php
 	}
 
