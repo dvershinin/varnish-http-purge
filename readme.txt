@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.3.0
+Stable tag: 5.4.0
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -14,7 +14,7 @@ Automatically empty proxy cached content when your site is modified.
 
 <strong>This plugin <em>does not</em> install nor configure a cache proxy. It acts as an interface with such services.</strong>
 
-One common method of caching content for websites is via the use of reverse proxy caching. Common examples of this are <a href="https://www.varnish-cache.org/">Varnish</a> and <a href="https://www.nginx.com/">Nginx</a>. These systems allow a website to update content and have the visitor's experience cached without the need for complex plugins storing the files locally and using up a user's disk space.
+One common method of caching content for websites is via the use of reverse proxy caching. Common examples of this are <a href="https://www.varnish-cache.org/">Varnish</a> and <a href="https://www.nginx.com/">NGINX</a>. These systems allow a website to update content and have the visitor's experience cached without the need for complex plugins storing the files locally and using up a user's disk space.
 
 A reverse proxy cache is installed in front of a server and reviews requests. If the page being requested is already cached, it delivers the cached content. Otherwise it generates the page and the cache on demand.
 
@@ -49,6 +49,31 @@ If you're working on a site and need to turn off caching in one of two ways:
 2. Go to Proxy Cache -> Settings and enable debug mode for 24 hours at a time
 
 That will break cache on page loads. It is _not_ recommended for production!
+
+= Cache Tags (BETA) =
+
+As of version 5.4.0, Proxy Cache Purge includes an **optional Cache Tags / Surrogate Keys purge mode**. This feature is marked as **BETA** and is disabled by default.
+
+When enabled, the plugin:
+
+* Adds cache-tag headers to WordPress responses (for example, tagging pages by post ID, post type, taxonomy terms, author, and archives).
+* Uses tag-based purges instead of individual URL purges when content is updated, which can reduce purge traffic and improve consistency on complex sites.
+
+Requirements:
+
+* A proxy cache that supports Cache Tags / Surrogate Keys and advertises this via standard `Surrogate-Capability` headers (for example, `Surrogate-Capability: vhp="Surrogate/1.0 tags/1"`).
+
+How to enable:
+
+* Go to **Proxy Cache → Settings → Purge Method** and check **“Use Cache Tags (Surrogate Keys)”**. The checkbox is only enabled when your cache tells WordPress it supports tags (or when you explicitly enable it via a define).
+* Alternatively, you can force-enable or force-disable detection via `wp-config.php`:
+
+<code>
+define( 'VHP_VARNISH_TAGS', true );  // Force treat cache as tag-capable
+define( 'VHP_VARNISH_TAGS', false ); // Force treat cache as not tag-capable
+</code>
+
+Because this feature depends on your cache configuration, it is recommended that you test it carefully in staging before enabling it on production.
 
 = WP CLI =
 
@@ -183,7 +208,7 @@ No. WordPress can't detect those file changes so it can't tell your cache what t
 
 = Does every WordPress plugin and theme work with a proxy cache? =
 
-No. Some of them have behaviours that causes them not to cache, either by accident or design. It's incredibly hard to debug those, since many of the related issues are contextual (like _if_ you save a page with a special setting). I've done my best to flag everything as possible issues with the debugger.
+No. Some of them have behaviours that cause them not to cache, either by accident or design. It's incredibly hard to debug those, since many of the related issues are contextual (like _if_ you save a page with a special setting). I've done my best to flag everything as possible issues with the debugger.
 
 = I'm a developer, can I tell your cache to empty in my plugin/theme? =
 
@@ -251,7 +276,7 @@ Your IP address is incorrect. Check the IP of your server and then the setting f
 
 = How do I find the right IP address? =
 
-Your proxy IP must be one of the IPs that the service is listening on. If you use multiple IPs, or if you've customized your ACLs, you'll need to pick on that doesn't conflict with your other settings.
+Your proxy IP must be one of the IPs that the service is listening on. If you use multiple IPs, or if you've customized your ACLs, you'll need to pick one that doesn't conflict with your other settings.
 
 For example, if you have a Varnish based cache and it's listening on a public and private IP, you'll want to pick the private. On the other hand, if you told Varnish to listen on 0.0.0.0 (i.e. "listen on every interface you can") you would need to check what IP you set your purge ACL to allow (commonly 127.0.0.1 aka localhost), and use that (i.e. 127.0.0.1).
 
@@ -271,7 +296,7 @@ It can, if you've configured Nginx caching to respect the curl PURGE request. If
 
 = What should my cache rules be? =
 
-This is a question beyond the support of plugin. I do not have the resources available to offer any configuration help. Here are some basic gotchas to be aware of:
+This is a question beyond the support of this plugin. I do not have the resources available to offer any configuration help. Here are some basic gotchas to be aware of:
 
 * To empty any cached data, the service will need to respect the PURGE command
 * Not all cache services set up PURGE by default

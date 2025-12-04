@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.3.0
+ * Version: 5.4.0
  * Author: Mika Epstein, Danila Vershinin
  * Author URI: https://halfelf.org/
  * License: Apache License 2.0
@@ -38,7 +38,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.3.0';
+	public static $version = '5.4.0';
 
 	/**
 	 * List of URLs to be purged
@@ -806,6 +806,192 @@ class VarnishPurger {
 	}
 
 	/**
+	 * Purge Tags
+	 *
+	 * @since 5.4.0
+	 * @param array $tags - The tags to be purged.
+	 * @access public
+	 */
+	public function purge_tags( $tags ) {
+		// Bail early if no tags.
+		if ( empty( $tags ) ) {
+			return;
+		}
+
+		// Unique tags only.
+		$tags = array_unique( array_filter( array_map( 'strval', $tags ) ) );
+
+		if ( empty( $tags ) ) {
+			return;
+		}
+
+		/**
+		 * Allow filtering of tags prior to batching and purging.
+		 *
+		 * @since 5.4.0
+		 *
+		 * @param array $tags List of cache tags to purge.
+		 */
+		$tags = apply_filters( 'vhp_purge_tags', $tags );
+
+		if ( empty( $tags ) || ! is_array( $tags ) ) {
+			return;
+		}
+
+		/**
+		 * Maximum length (in bytes) of the header value used for tag patterns.
+		 * Defaults to 7680 bytes, which is a safe value below common Varnish
+		 * and HTTP header limits, and helps avoid oversized BAN expressions.
+		 *
+		 * @since 5.4.0
+		 *
+		 * @param int $max_header_size Maximum header size in bytes.
+		 */
+		$max_header_size = (int) apply_filters( 'vhp_purge_tags_max_header_size', 7680 );
+		if ( $max_header_size <= 0 ) {
+			$max_header_size = 7680;
+		}
+
+		// Build batched patterns like "tag-one|tag-two|tag-three" to be used in a single BAN.
+		$patterns          = array();
+		$current_tags      = array();
+		$current_size      = 0;
+		foreach ( $tags as $tag ) {
+			$tag        = trim( (string) $tag );
+			$tag_length = strlen( $tag );
+			if ( '' === $tag || 0 === $tag_length ) {
+				continue;
+			}
+
+			// Extra 1 byte for the '|' delimiter when there are existing tags in the batch.
+			$additional = $tag_length + ( empty( $current_tags ) ? 0 : 1 );
+
+			// If adding this tag would exceed the header size, flush the current batch first.
+			if ( $current_size > 0 && ( $current_size + $additional ) > $max_header_size ) {
+				$patterns[]    = implode( '|', $current_tags );
+				$current_tags  = array();
+				$current_size  = 0;
+				$additional    = $tag_length; // first tag in the new batch, no delimiter yet.
+			}
+
+			$current_tags[] = $tag;
+			$current_size  += $additional;
+		}
+
+		if ( ! empty( $current_tags ) ) {
+			$patterns[] = implode( '|', $current_tags );
+		}
+
+		if ( empty( $patterns ) ) {
+			return;
+		}
+
+		// Build a varniship to sail. ⛵️
+		$varniship = ( VHP_VARNISH_IP !== false ) ? VHP_VARNISH_IP : get_site_option( 'vhp_varnish_ip' );
+
+		// If there are commas, and for whatever reason this didn't become an array
+		// properly, force it.
+		if ( ! is_array( $varniship ) && strpos( $varniship, ',' ) !== false ) {
+			$varniship = array_map( 'trim', explode( ',', $varniship ) );
+		}
+
+		// Now apply filters
+		if ( is_array( $varniship ) ) {
+			// To each ship:
+			for ( $i = 0; $i < count( $varniship ); $i++ ) {
+				$varniship[ $i ] = apply_filters( 'vhp_varnish_ip', $varniship[ $i ] );
+			}
+		} else {
+			// To the only ship:
+			$varniship = apply_filters( 'vhp_varnish_ip', $varniship );
+		}
+
+		// This is a very annoying check for DreamHost who needs to default to HTTPS without breaking
+		// people who've been around before.
+		$server_hostname = gethostname();
+		switch ( substr( $server_hostname, 0, 3 ) ) {
+			case 'dp-':
+				$schema_type = 'https://';
+				break;
+			default:
+				$schema_type = 'http://';
+				break;
+		}
+		$schema = apply_filters( 'varnish_http_purge_schema', $schema_type );
+
+		// Get home URL parts
+		$p = wp_parse_url( $this->the_home_url() );
+
+		// When we have Varnish IPs, we use them in lieu of hosts.
+		if ( isset( $varniship ) && ! empty( $varniship ) ) {
+			$all_hosts = ( ! is_array( $varniship ) ) ? array( $varniship ) : $varniship;
+		} else {
+			// The default is the main host, converted into an array.
+			$all_hosts = array( $p['host'] );
+		}
+
+		// Since the ship is always an array now, let's loop.
+		foreach ( $all_hosts as $one_host ) {
+
+			$host_headers = $p['host'];
+
+			// If the URL to be purged has a port, we're going to re-use it.
+			if ( isset( $p['port'] ) ) {
+				$host_headers .= ':' . $p['port'];
+			}
+
+			// Filter URL based on the Proxy IP for nginx compatibility.
+			if ( 'localhost' === $one_host ) {
+				// No URL rewrite needed for tag-based purges.
+			}
+
+			// Create path to purge.
+			$purgeme = $schema . $one_host . '/';
+
+			// Send one PURGE per pattern so VCL can invalidate by regex in a single BAN.
+			foreach ( $patterns as $pattern ) {
+				/**
+				 * Filters the HTTP headers to send with a PURGE request.
+				 *
+				 * @since 4.1
+				 */
+				$headers = apply_filters(
+					'varnish_http_purge_headers',
+					array(
+						'host'                    => $host_headers,
+						'X-Purge-Method'          => 'tags',
+						'X-Cache-Tags-Pattern'    => $pattern,
+					)
+				);
+
+				// Send response.
+				// SSL Verify is required here since Varnish is HTTP only, but proxies are a thing.
+				$response = wp_remote_request(
+					$purgeme,
+					array(
+						'sslverify' => false,
+						'method'    => 'PURGE',
+						'headers'   => $headers,
+					)
+				);
+
+				/**
+				 * Fires after a tag-pattern purge request has been sent.
+				 *
+				 * @since 5.4.0
+				 *
+				 * @param array  $tags     Full list of tags requested for purge.
+				 * @param string $pattern  The pattern string used for this PURGE (e.g. "tag-one|tag-two").
+				 * @param string $purgeme  The URL that was purged.
+				 * @param mixed  $response The response from wp_remote_request().
+				 * @param array  $headers  The headers sent with the PURGE request.
+				 */
+				do_action( 'after_purge_tags', $tags, $pattern, $purgeme, $response, $headers );
+			}
+		}
+	}
+
+	/**
 	 * Purge - No IDs
 	 * Flush the whole cache
 	 *
@@ -915,6 +1101,13 @@ class VarnishPurger {
 
 		// Verify we have a permalink and that we're a valid post status and type.
 		if ( false !== get_permalink( $post_id ) && in_array( $this_post_status, $valid_post_status, true ) && ! in_array( $this_post_type, $invalid_post_type, true ) ) {
+
+			// If we're using tags, purge by tags and return.
+			if ( get_site_option( 'vhp_varnish_use_tags' ) && class_exists( 'VarnishTags' ) ) {
+				$tags = VarnishTags::get_purge_tags_for_post( $post_id );
+				$this->purge_tags( $tags );
+				return;
+			}
 
 			// Post URL.
 			array_push( $listofurls, get_permalink( $post_id ) );
@@ -1149,6 +1342,12 @@ if ( ! class_exists( 'VarnishStatus' ) ) {
 	}
 	require_once 'debug.php';
 	require_once 'health-check.php';
+	require_once 'varnish-tags.php';
+
+	// Initialize Tags if enabled.
+	if ( get_site_option( 'vhp_varnish_use_tags' ) ) {
+		new VarnishTags();
+	}
 
 	$purger = new VarnishPurger();
 }

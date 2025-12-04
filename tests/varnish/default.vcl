@@ -24,6 +24,11 @@ sub vcl_recv {
             return (synth(405, "PURGE not allowed"));
         }
         /* Use BAN to invalidate cache */
+        if (req.http.X-Purge-Method == "tags" && req.http.X-Cache-Tags-Pattern) {
+            /* Tag-based purge: match any object whose X-Cache-Tags header matches the pattern */
+            ban("obj.http.X-Cache-Tags ~ " + req.http.X-Cache-Tags-Pattern);
+            return (synth(200, "Banned by tags pattern"));
+        }
         if (req.http.X-Purge-Method == "regex") {
             ban("obj.http.X-Url ~ .");
             return (synth(200, "Banned all URLs"));
@@ -54,6 +59,13 @@ sub vcl_recv {
     }
 
     return (hash);
+}
+
+sub vcl_backend_fetch {
+    /* Advertise surrogate capabilities to the origin as per Edge Architecture:
+       Surrogate-Capability: vhp="Surrogate/1.0 tags/1"
+    */
+    set bereq.http.Surrogate-Capability = "vhp=Surrogate/1.0 tags/1";
 }
 
 sub vcl_hash {

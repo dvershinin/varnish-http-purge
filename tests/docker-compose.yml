@@ -100,7 +100,7 @@ services:
     # Use container filesystem for /var/lib/varnish to avoid noexec tmpfs on some runners
     # No healthcheck; rely on wordpress health and simple wait in CI
     ports:
-      - "8080:80"
+      - "${TEST_PORT:-8080}:80"
     networks:
       vhp_net:
         aliases:

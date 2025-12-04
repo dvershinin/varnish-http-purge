@@ -58,6 +58,11 @@ class VarnishStatus {
 		add_settings_section( 'vhp-settings-devmode-section', __( 'Development Mode Settings', 'varnish-http-purge' ), array( &$this, 'options_settings_devmode' ), 'varnish-devmode-settings' );
 		add_settings_field( 'varnish_devmode', __( 'Development Mode', 'varnish-http-purge' ), array( &$this, 'settings_devmode_callback' ), 'varnish-devmode-settings', 'vhp-settings-devmode-section' );
 
+		// Purge Method settings (Cache Tags)
+		register_setting( 'vhp-settings-tags', 'vhp_varnish_use_tags', array( &$this, 'settings_tags_sanitize' ) );
+		add_settings_section( 'vhp-settings-tags-section', __( 'Purge Method', 'varnish-http-purge' ), array( &$this, 'options_settings_tags' ), 'varnish-tags-settings' );
+		add_settings_field( 'varnish_use_tags', __( 'Use Cache Tags', 'varnish-http-purge' ), array( &$this, 'settings_tags_callback' ), 'varnish-tags-settings', 'vhp-settings-tags-section' );
+
 		// Purge All settings
 		register_setting( 'vhp-settings-maxposts', 'vhp_varnish_max_posts_before_all', array( &$this, 'settings_maxposts_sanitize' ) );
 		add_settings_section( 'vhp-settings-maxposts-section', __( 'Maximum Individual URLs before Full Purge', 'varnish-http-purge' ), array( &$this, 'options_settings_maxposts' ), 'varnish-maxposts-settings' );
@@ -94,8 +99,8 @@ class VarnishStatus {
 		$expire  = time() + DAY_IN_SECONDS;
 		?>
 		<input type="hidden" name="vhp_varnish_devmode[expire]" value="<?php echo esc_attr( $expire ); ?>" />
-		<input type="checkbox" name="vhp_varnish_devmode[active]" value="true" <?php disabled( VHP_DEVMODE ); ?> <?php checked( $active, true ); ?> />
-		<label for="vhp_varnish_devmode['active']">
+		<input type="checkbox" id="vhp_varnish_devmode_active" name="vhp_varnish_devmode[active]" value="true" <?php disabled( VHP_DEVMODE ); ?> <?php checked( $active, true ); ?> />
+		<label for="vhp_varnish_devmode_active">
 			<?php
 			if ( $active && isset( $devmode['expire'] ) && ! VHP_DEVMODE ) {
 				$timestamp = date_i18n( get_site_option( 'date_format' ), $devmode['expire'] ) . ' @ ' . date_i18n( get_site_option( 'time_format' ), $devmode['expire'] );
@@ -140,6 +145,126 @@ class VarnishStatus {
 
 		add_settings_error( 'vhp_varnish_devmode', 'varnish-devmode', $set_message, $set_type );
 		return $output;
+	}
+
+	/**
+	 * Options Settings - Tags
+	 *
+	 * @since 5.4.0
+	 */
+	public function options_settings_tags() {
+		$supported = false;
+		$source    = 'auto';
+
+		// If VHP_VARNISH_TAGS is defined, treat it as an explicit override for detection.
+		if ( defined( 'VHP_VARNISH_TAGS' ) ) {
+			$supported = (bool) VHP_VARNISH_TAGS;
+			$source    = $supported ? 'forced_on' : 'forced_off';
+		} elseif ( class_exists( 'VarnishDebug' ) && method_exists( 'VarnishDebug', 'cache_tags_advertised' ) ) {
+			$supported = VarnishDebug::cache_tags_advertised();
+			$source    = $supported ? 'advertised' : 'none';
+		}
+
+		?>
+		<p><a name="#configuretags"></a><?php esc_html_e( 'By default, the plugin purges specific URLs when content is updated. Modern cache setups support "Cache Tags" (also known as Surrogate Keys), which allow for more efficient and reliable purging. Enabling this option will replace URL-based purging with Tag-based purging.', 'varnish-http-purge' ); ?></p>
+		<p><strong><?php esc_html_e( 'BETA:', 'varnish-http-purge' ); ?></strong> <?php esc_html_e( 'Cache Tags / Surrogate Keys support is experimental and should be enabled only after verifying that your cache (for example, Varnish) is correctly configured and tested in your environment.', 'varnish-http-purge' ); ?></p>
+		<p><?php esc_html_e( 'This requires your cache layer to advertise support via standard Surrogate-Capability headers (for example, Surrogate-Capability: vhp="Surrogate/1.0 tags/1"), or you can explicitly force support using the VHP_VARNISH_TAGS define in wp-config.php.', 'varnish-http-purge' ); ?></p>
+		<?php
+		// Status message about detection / override.
+		if ( $supported ) {
+			echo '<p class="description" style="color:#46b450;">';
+			if ( 'advertised' === $source ) {
+				esc_html_e( 'Your cache server told WordPress that it supports Cache Tags / Surrogate Keys (via the Surrogate-Capability header). You can safely enable or disable this option.', 'varnish-http-purge' );
+			} elseif ( 'forced_on' === $source ) {
+				esc_html_e( 'Cache Tags / Surrogate Keys support has been forced on via the VHP_VARNISH_TAGS define in wp-config.php.', 'varnish-http-purge' );
+			}
+			echo '</p>';
+		} else {
+			echo '<p class="description">';
+			if ( 'forced_off' === $source ) {
+				esc_html_e( 'Cache Tags / Surrogate Keys support has been explicitly disabled via the VHP_VARNISH_TAGS define in wp-config.php.', 'varnish-http-purge' );
+			} else {
+				esc_html_e( 'Your cache server did not report support for Cache Tags / Surrogate Keys. To enable this setting, configure your cache to send a Surrogate-Capability header that advertises tag support (for example, Surrogate-Capability: vhp="Surrogate/1.0 tags/1") or define VHP_VARNISH_TAGS in wp-config.php.', 'varnish-http-purge' );
+			}
+			echo '</p>';
+		}
+		?>
+		<details>
+			<summary><?php esc_html_e( 'View VCL Snippet (tags via BAN)', 'varnish-http-purge' ); ?></summary>
+			<pre style="background:#f0f0f0;padding:10px;overflow:auto;">
+sub vcl_recv {
+    if (req.method == "PURGE") {
+        # ... acl check ...
+        if (req.http.X-Purge-Method == "tags" && req.http.X-Cache-Tags-Pattern) {
+            ban("obj.http.X-Cache-Tags ~ " + req.http.X-Cache-Tags-Pattern);
+            return (synth(200, "Banned by tags pattern"));
+        }
+    }
+}
+			</pre>
+		</details>
+		<?php
+	}
+
+	/**
+	 * Settings Tags Callback
+	 *
+	 * @since 5.4.0
+	 */
+	public function settings_tags_callback() {
+		$use_tags  = get_site_option( 'vhp_varnish_use_tags' );
+		$supported = false;
+		// If VHP_VARNISH_TAGS is defined, treat it as an explicit override for detection.
+		if ( defined( 'VHP_VARNISH_TAGS' ) ) {
+			$supported = (bool) VHP_VARNISH_TAGS;
+		} elseif ( class_exists( 'VarnishDebug' ) && method_exists( 'VarnishDebug', 'cache_tags_advertised' ) ) {
+			$supported = VarnishDebug::cache_tags_advertised();
+		}
+
+		$disabled = ! $supported;
+		?>
+		<label for="vhp_varnish_use_tags">
+			<input type="checkbox" id="vhp_varnish_use_tags" name="vhp_varnish_use_tags" value="1" <?php checked( $use_tags, 1 ); ?> <?php disabled( $disabled ); ?> />
+			<?php esc_html_e( 'Enable Cache Tags (Surrogate Keys)', 'varnish-http-purge' ); ?>
+		</label>
+		<?php
+		if ( $supported ) {
+			echo '<p class="description" style="color:#46b450;">';
+			if ( 'advertised' === $source ) {
+				esc_html_e( 'Your cache server told WordPress that it supports Cache Tags / Surrogate Keys (via the Surrogate-Capability header). You can safely enable or disable this option.', 'varnish-http-purge' );
+			} elseif ( 'forced_on' === $source ) {
+				esc_html_e( 'Cache Tags / Surrogate Keys support has been forced on via the VHP_VARNISH_TAGS define in wp-config.php.', 'varnish-http-purge' );
+			}
+			echo '</p>';
+		} else {
+			echo '<p class="description">';
+			if ( 'forced_off' === $source ) {
+				esc_html_e( 'Cache Tags / Surrogate Keys support has been explicitly disabled via the VHP_VARNISH_TAGS define in wp-config.php.', 'varnish-http-purge' );
+			} else {
+				esc_html_e( 'Your cache server did not report support for Cache Tags / Surrogate Keys. To enable this setting, configure your cache to send a Surrogate-Capability header that advertises tag support (for example, Surrogate-Capability: vhp=\"Surrogate/1.0 tags/1\") or define VHP_VARNISH_TAGS in wp-config.php.', 'varnish-http-purge' );
+			}
+			echo '</p>';
+		}
+	}
+
+	/**
+	 * Sanitization for Tags
+	 *
+	 * @since 5.4.0
+	 */
+	public function settings_tags_sanitize( $input ) {
+		$supported = false;
+
+		if ( class_exists( 'VarnishDebug' ) && method_exists( 'VarnishDebug', 'cache_tags_advertised' ) ) {
+			$supported = VarnishDebug::cache_tags_advertised();
+		}
+
+		// If support is not advertised, force the option off.
+		if ( ! $supported ) {
+			return 0;
+		}
+
+		return ( isset( $input ) && 1 == $input ) ? 1 : 0;
 	}
 
 	/**
@@ -496,6 +621,14 @@ class VarnishStatus {
 					settings_fields( 'vhp-settings-devmode' );
 					do_settings_sections( 'varnish-devmode-settings' );
 					submit_button( __( 'Save Devmode Settings', 'varnish-http-purge' ), 'primary' );
+				?>
+				</form>
+
+				<form action="options.php" method="POST" >
+				<?php
+					settings_fields( 'vhp-settings-tags' );
+					do_settings_sections( 'varnish-tags-settings' );
+					submit_button( __( 'Save Purge Method', 'varnish-http-purge' ), 'primary' );
 				?>
 				</form>
 

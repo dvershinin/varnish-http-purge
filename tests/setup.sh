@@ -10,9 +10,11 @@ until docker compose exec -T wordpress curl -sSf http://localhost/wp-admin/insta
   sleep 3
 done
 
-if ! wp core is-installed --url="http://localhost:8080"; then
+PORT="${TEST_PORT:-8080}"
+
+if ! wp core is-installed --url="http://localhost:${PORT}"; then
   wp core install \
-    --url="http://localhost:8080" \
+    --url="http://localhost:${PORT}" \
     --title="Varnish Test" \
     --admin_user=admin \
     --admin_password=admin \
@@ -35,7 +37,7 @@ if ! wp post list --post_type=post --format=ids | grep -qE '^[0-9]+'; then
   wp post create --post_title="Hello Cache" --post_content="First content" --post_status=publish
 fi
 
-echo "Setup complete. Site at http://localhost:8080"
+echo "Setup complete. Site at http://localhost:${PORT}"
 
 
 

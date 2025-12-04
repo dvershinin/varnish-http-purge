@@ -36,6 +36,12 @@ def wait_http_ok(url: str, timeout: float = 60.0, headers=None, accept_codes=Non
 
 @pytest.fixture(scope="session", autouse=True)
 def ensure_up():
+    # Allow fast-running or sandboxed environments to skip the long warmup checks
+    # by setting VHP_SKIP_ENSURE_UP=1. Locally and in CI this should normally
+    # be left unset so we still verify that WordPress/Varnish are reachable.
+    if os.environ.get("VHP_SKIP_ENSURE_UP") == "1":
+        return
+
     # Ensure WordPress backend is up and Varnish (public URL) responds, too
     # Be tolerant to redirects/403/503 during warmup
     try:

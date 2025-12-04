@@ -167,6 +167,125 @@ class VarnishDebug {
 	}
 
 	/**
+	 * Detect whether the cache advertises support for cache tags.
+	 *
+	 * This uses only standard surrogate headers as per the Edge Architecture
+	 * specification (e.g. the Surrogate-Capability request header),
+	 * optionally overridden by a wp-config define.
+	 *
+	 * Example of a Surrogate-Capability header that advertises cache tags:
+	 *
+	 *   Surrogate-Capability: vhp="Surrogate/1.0 tags/1"
+	 *
+	 * Administrators can explicitly force detection on or off by defining
+	 * VHP_VARNISH_TAGS in wp-config.php, which is useful when /wp-admin/
+	 * is served directly (bypassing the surrogate) but the public site
+	 * still uses cache tags.
+	 *
+	 * @since 5.4.0
+	 *
+	 * @access public
+	 * @static
+	 * @return bool True if support is advertised or forced, false otherwise.
+	 */
+	public static function cache_tags_advertised() {
+
+		// Hard override via wp-config.
+		if ( defined( 'VHP_VARNISH_TAGS' ) ) {
+			/**
+			 * Filter whether cache tags support is advertised when
+			 * explicitly overridden by VHP_VARNISH_TAGS.
+			 *
+			 * @since 5.4.0
+			 *
+			 * @param bool $forced Current forced value.
+			 */
+			return (bool) apply_filters( 'varnish_http_purge_cache_tags_advertised', (bool) VHP_VARNISH_TAGS );
+		}
+
+		// Best-effort header collection for the current request.
+		$headers = array();
+
+		if ( function_exists( 'getallheaders' ) ) {
+			$headers = getallheaders();
+		} else {
+			foreach ( $_SERVER as $key => $value ) {
+				if ( 0 === strpos( $key, 'HTTP_' ) ) {
+					$name              = str_replace( ' ', '-', ucwords( strtolower( str_replace( '_', ' ', substr( $key, 5 ) ) ) ) );
+					$headers[ $name ] = $value;
+				}
+			}
+		}
+
+		$surrogate_capability = '';
+		foreach ( $headers as $name => $value ) {
+			if ( strtolower( $name ) === 'surrogate-capability' ) {
+				$surrogate_capability = $value;
+				break;
+			}
+		}
+		if ( empty( $surrogate_capability ) && isset( $_SERVER['HTTP_SURROGATE_CAPABILITY'] ) ) {
+			$surrogate_capability = $_SERVER['HTTP_SURROGATE_CAPABILITY'];
+		}
+
+		$supported = false;
+
+		if ( ! empty( $surrogate_capability ) && is_string( $surrogate_capability ) ) {
+			// Parse according to Edge Architecture Surrogate-Capability grammar.
+			// Example: abc="Surrogate/1.0 tags/1", def="Surrogate/1.0"
+			$sets = explode( ',', $surrogate_capability );
+
+			foreach ( $sets as $set ) {
+				$set = trim( $set );
+				if ( false === strpos( $set, '=' ) ) {
+					continue;
+				}
+
+				list( $device, $caps_raw ) = array_map( 'trim', explode( '=', $set, 2 ) );
+
+				// Strip quotes around the capabilities list.
+				$caps_raw = trim( $caps_raw, "\"' \t" );
+				if ( '' === $caps_raw ) {
+					continue;
+				}
+
+				$caps = preg_split( '/\s+/', $caps_raw );
+				if ( empty( $caps ) ) {
+					continue;
+				}
+
+				foreach ( $caps as $cap ) {
+					$cap = strtolower( trim( $cap ) );
+
+					// Look for commonly used tokens that imply tag support.
+					if (
+						0 === strpos( $cap, 'xkey/' ) ||
+						0 === strpos( $cap, 'tags/' ) ||
+						0 === strpos( $cap, 'cache-tags/' )
+					) {
+						$supported = true;
+						break 2; // Break out of both loops.
+					}
+				}
+			}
+		}
+
+		/**
+		 * Filter whether cache tags support is advertised.
+		 *
+		 * This allows environments to explicitly signal support even when
+		 * Surrogate-Capability parsing is insufficient.
+		 *
+		 * @since 5.4.0
+		 *
+		 * @param bool $supported Current detection result.
+		 */
+		$supported = (bool) apply_filters( 'varnish_http_purge_cache_tags_advertised', $supported );
+
+		return $supported;
+	}
+
+	/**
 	 * Basic checks that should stop a scan
 	 *
 	 * @since 4.4.0.

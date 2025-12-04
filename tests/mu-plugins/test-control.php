@@ -193,6 +193,20 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
+    // Toggle tag-based purge mode for tests.
+    register_rest_route( 'test/v1', '/tags-mode', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $enabled = (bool) $req->get_param( 'enabled' );
+            update_site_option( 'vhp_varnish_use_tags', $enabled ? 1 : 0 );
+            return array(
+                'ok'      => true,
+                'enabled' => $enabled,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     register_rest_route( 'test/v1', '/post/(?P<id>\d+)', array(
         'methods' => 'PUT',
         'callback' => function( WP_REST_Request $req ) {
@@ -206,6 +220,19 @@ add_action( 'rest_api_init', function() {
         },
         'permission_callback' => '__return_true',
     ) );
+} );
+
+// Keep tag-pattern headers deliberately small in tests to exercise batching logic.
+add_filter( 'vhp_purge_tags_max_header_size', function( $max ) {
+    // Use a very small limit so posts with many tags must be split
+    // across multiple X-Cache-Tags-Pattern values, exercising the
+    // plugin's tag-pattern batching used for BAN-based purges.
+    $limit = 64;
+    if ( is_numeric( $max ) && (int) $max > 0 && (int) $max < $limit ) {
+        // Respect an even smaller test override if provided.
+        return (int) $max;
+    }
+    return $limit;
 } );
 
 

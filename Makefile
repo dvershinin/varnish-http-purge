@@ -20,9 +20,10 @@ test:
 
 tests:
 	# Ensure stack is up and WP is initialized before tests
-	$(MAKE) up
-	cd tests && bash setup.sh
-	cd tests && docker compose run --rm tester -q
+	export TEST_PORT=$$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()') && \
+	$(MAKE) -e up && \
+	cd tests && bash setup.sh && \
+	docker compose run --rm tester -q
 
 pytest:
 	cd tests && docker compose run --rm tester -q
@@ -50,6 +51,8 @@ logs:
 	cd tests && docker compose logs -f | cat
 
 clean: down
-	cd tests && docker volume rm $$(docker volume ls -q | grep -E '(wp_data|db_data)') || true
+	# Remove any leftover test-related volumes if they exist.
+	cd tests && volumes=$$(docker volume ls -q | grep -E '(wp_data|db_data)' || true); \
+		if [ -n "$$volumes" ]; then docker volume rm $$volumes; fi
 
 
