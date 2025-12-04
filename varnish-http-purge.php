@@ -71,7 +71,10 @@ class VarnishPurger {
 		defined( 'VHP_VARNISH_IP' ) || define( 'VHP_VARNISH_IP', false );
 		defined( 'VHP_DEVMODE' ) || define( 'VHP_DEVMODE', false );
 		defined( 'VHP_DOMAINS' ) || define( 'VHP_DOMAINS', false );
+		defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) || define( 'VHP_VARNISH_EXTRA_PURGE_HEADER', false );
 		defined( 'VHP_EXCLUDED_POST_STATUSES' ) || define( 'VHP_EXCLUDED_POST_STATUSES', false );
+
+		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( &$this, 'settings_link' ) );
 
 		// Development mode defaults to off.
 		self::$devmode = array(
@@ -271,6 +274,15 @@ class VarnishPurger {
 	public function admin_message_devmode() {
 		$message = ( VarnishDebug::devmode_check() ) ? __( 'Development Mode activated for the next 24 hours.', 'varnish-http-purge' ) : __( 'Development Mode deactivated.', 'varnish-http-purge' );
 		echo '<div id="message" class="notice notice-success fade is-dismissible"><p><strong>' . wp_kses_post( $message ) . '</strong></p></div>';
+	}
+
+	/**
+	 * Add settings link on plugin list
+	 */
+	public function settings_link( $links ) {
+		$settings_link = '<a href="admin.php?page=varnish-page">' . __( 'Settings', 'varnish-http-purge' ) . '</a>';
+		array_unshift( $links, $settings_link );
+		return $links;
 	}
 
 	/**
@@ -777,6 +789,26 @@ class VarnishPurger {
 			 */
 			$purgeme = apply_filters( 'vhp_purgeme_path', $purgeme, $schema, $one_host, $path, $pregex, $p );
 
+			$default_headers = array(
+				'host'           => $host_headers,
+				'X-Purge-Method' => $x_purge_method,
+			);
+			if ( VHP_VARNISH_EXTRA_PURGE_HEADER && strpos( VHP_VARNISH_EXTRA_PURGE_HEADER, ':' ) !== false ) {
+				// If this is set, extract name/value.
+				$header_parts        = explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER, 2 );
+				$custom_header_name  = trim( $header_parts[0] );
+				$custom_header_value = ( isset( $header_parts[1] ) ) ? trim( $header_parts[1] ) : '';
+				if ( ! empty( $custom_header_name ) && ! empty( $custom_header_value ) ) {
+					$default_headers[ $custom_header_name ] = $custom_header_value;
+				}
+			} elseif ( get_site_option( 'vhp_varnish_extra_purge_header_value' ) && get_site_option( 'vhp_varnish_extra_purge_header_name' ) ) {
+				$custom_header_name  = trim( get_site_option( 'vhp_varnish_extra_purge_header_name' ) );
+				$custom_header_value = trim( get_site_option( 'vhp_varnish_extra_purge_header_value' ) );
+				if ( ! empty( $custom_header_name ) && ! empty( $custom_header_value ) ) {
+					$default_headers[ $custom_header_name ] = $custom_header_value;
+				}
+			}
+
 			/**
 			 * Filters the HTTP headers to send with a PURGE request.
 			 *
@@ -784,10 +816,7 @@ class VarnishPurger {
 			 */
 			$headers = apply_filters(
 				'varnish_http_purge_headers',
-				array(
-					'host'           => $host_headers,
-					'X-Purge-Method' => $x_purge_method,
-				)
+				$default_headers
 			);
 
 			// Send response.
@@ -1340,6 +1369,17 @@ if ( ! class_exists( 'VarnishStatus' ) ) {
 	if ( ! is_network_admin() ) {
 		require_once 'settings.php';
 	}
+
+	/**
+	 * In the test stack, a small MU plugin (`test-control.php`) under
+	 * `wp-content/mu-plugins` registers helper REST endpoints that the
+	 * Python/pytest suite relies on. Some environments may not auto-load
+	 * MU plugins for HTTP requests (for example when bootstrapped in a
+	 * minimal context), so we defensively include it here when present.
+	 *
+	 * This is a no-op on normal installations where the file does not
+	 * exist, and safe when it does thanks to include_once.
+	 */
 	require_once 'debug.php';
 	require_once 'health-check.php';
 	require_once 'varnish-tags.php';

@@ -63,7 +63,7 @@ class VarnishStatus {
 		add_settings_section( 'vhp-settings-tags-section', __( 'Purge Method', 'varnish-http-purge' ), array( &$this, 'options_settings_tags' ), 'varnish-tags-settings' );
 		add_settings_field( 'varnish_use_tags', __( 'Use Cache Tags', 'varnish-http-purge' ), array( &$this, 'settings_tags_callback' ), 'varnish-tags-settings', 'vhp-settings-tags-section' );
 
-		// Purge All settings
+		// Purge All settings.
 		register_setting( 'vhp-settings-maxposts', 'vhp_varnish_max_posts_before_all', array( &$this, 'settings_maxposts_sanitize' ) );
 		add_settings_section( 'vhp-settings-maxposts-section', __( 'Maximum Individual URLs before Full Purge', 'varnish-http-purge' ), array( &$this, 'options_settings_maxposts' ), 'varnish-maxposts-settings' );
 		add_settings_field( 'varnish_maxposts', __( 'Set Max URLs', 'varnish-http-purge' ), array( &$this, 'settings_maxposts_callback' ), 'varnish-maxposts-settings', 'vhp-settings-maxposts-section' );
@@ -72,6 +72,13 @@ class VarnishStatus {
 		register_setting( 'vhp-settings-ip', 'vhp_varnish_ip', array( &$this, 'settings_ip_sanitize' ) );
 		add_settings_section( 'vhp-settings-ip-section', __( 'Configure Custom IP', 'varnish-http-purge' ), array( &$this, 'options_settings_ip' ), 'varnish-ip-settings' );
 		add_settings_field( 'varnish_ip', __( 'Set Custom IP', 'varnish-http-purge' ), array( &$this, 'settings_ip_callback' ), 'varnish-ip-settings', 'vhp-settings-ip-section' );
+
+		// Purge Headers settings.
+		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_extra_purge_header_name', array( &$this, 'settings_purgeheaders_name_sanitize' ) );
+		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_extra_purge_header_value', array( &$this, 'settings_purgeheaders_value_sanitize' ) );
+		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge Headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
+		add_settings_field( 'varnish_purgeheaders_name', __( 'Set Purge Header Name', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_name_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
+		add_settings_field( 'varnish_purgeheaders_value', __( 'Set Purge Header Value', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_value_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
 	}
 
 	/**
@@ -189,12 +196,24 @@ class VarnishStatus {
 			echo '</p>';
 		}
 		?>
-		<details>
-			<summary><?php esc_html_e( 'View VCL Snippet (tags via BAN)', 'varnish-http-purge' ); ?></summary>
+		<div class="vhp-accordion vhp-accordion-vcl">
+			<button type="button" class="vhp-accordion-toggle" aria-expanded="false" aria-controls="vhp-accordion-panel-vcl">
+				<span class="dashicons dashicons-arrow-right" aria-hidden="true"></span>
+				<span class="vhp-accordion-label"><?php esc_html_e( 'View VCL Snippet (tags via BAN)', 'varnish-http-purge' ); ?></span>
+			</button>
+			<div id="vhp-accordion-panel-vcl" class="vhp-accordion-panel" hidden>
 			<pre style="background:#f0f0f0;padding:10px;overflow:auto;">
 sub vcl_recv {
     if (req.method == "PURGE") {
         # ... acl check ...
+        # Optional: validate a control header sent by the plugin (for example
+        # via the VHP_VARNISH_EXTRA_PURGE_HEADER constant or the "Purge Headers" settings).
+        # Adjust the header name and value to match your environment.
+        #
+        # if (req.http.X-Control-Key != "YOUR_CONTROL_KEY_HERE") {
+        #     return (synth(403, "Forbidden"));
+        # }
+
         if (req.http.X-Purge-Method == "tags" && req.http.X-Cache-Tags-Pattern) {
             ban("obj.http.X-Cache-Tags ~ " + req.http.X-Cache-Tags-Pattern);
             return (synth(200, "Banned by tags pattern"));
@@ -202,7 +221,8 @@ sub vcl_recv {
     }
 }
 			</pre>
-		</details>
+			</div>
+		</div>
 		<?php
 	}
 
@@ -376,6 +396,7 @@ sub vcl_recv {
 		if ( $disabled ) {
 			esc_html_e( 'A Proxy Cache IP has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
 		} else {
+			echo '<br />';
 			esc_html_e( 'Examples: ', 'varnish-http-purge' );
 			echo '<br /><code>123.45.67.89</code><br /><code>localhost</code><br /><code>12.34.56.78, 23.45.67.89</code>';
 		}
@@ -418,6 +439,119 @@ sub vcl_recv {
 		}
 
 		add_settings_error( 'vhp_varnish_ip', 'varnish-ip', $set_message, $set_type );
+		return $output;
+	}
+
+	/**
+	 * Options Settings - Purge Headers
+	 */
+	public function options_settings_purgeheaders() {
+		?>
+		<p><a id="configurepurgeheaders"></a>
+			<strong><?php esc_html_e( 'Advanced:', 'varnish-http-purge' ); ?></strong>
+			<?php esc_html_e( 'Only configure this if your hosting provider or cache service explicitly documents a required control or Authorization header for PURGE requests. If you are not sure, leave these fields empty.', 'varnish-http-purge' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Settings - Purge Headers Name
+	 */
+	public function settings_purgeheaders_name_callback() {
+
+		$disabled = false;
+		if ( defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) && false !== VHP_VARNISH_EXTRA_PURGE_HEADER ) {
+			$disabled    = true;
+			$header_name = explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER )[0];
+		} else {
+			$header_name = get_site_option( 'vhp_varnish_extra_purge_header_name' );
+		}
+
+		?>
+		<input type="text" id="vhp_varnish_extra_purge_header_name" name="vhp_varnish_extra_purge_header_name" value="<?php echo esc_attr( $header_name ); ?>" size="25" <?php disabled( $disabled, true ); ?> />
+		<label for="vhp_varnish_extra_purge_header_name">&nbsp;
+		<?php
+		if ( $disabled ) {
+			esc_html_e( 'The header has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
+		}
+		echo '</label>';
+	}
+
+	/**
+	 * Settings - Purge Headers Value
+	 */
+	public function settings_purgeheaders_value_callback() {
+
+		$disabled = false;
+		if ( defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) && false !== VHP_VARNISH_EXTRA_PURGE_HEADER ) {
+			$disabled     = true;
+			$header_value = '';
+
+			if ( strpos( VHP_VARNISH_EXTRA_PURGE_HEADER, ':' ) !== false ) {
+				$parts = explode( ':', VHP_VARNISH_EXTRA_PURGE_HEADER, 2 );
+				if ( isset( $parts[1] ) ) {
+					$header_value = trim( $parts[1] );
+				}
+			}
+
+			// If the constant is malformed (no value part), fall back to the stored option
+			// so that the field still displays something meaningful.
+			if ( '' === $header_value ) {
+				$header_value = get_site_option( 'vhp_varnish_extra_purge_header_value' );
+			}
+		} else {
+			$header_value = get_site_option( 'vhp_varnish_extra_purge_header_value' );
+		}
+
+		?>
+		<input type="password" id="vhp_varnish_extra_purge_header_value" name="vhp_varnish_extra_purge_header_value" value="<?php echo esc_attr( $header_value ); ?>" size="25" <?php disabled( $disabled, true ); ?> autocomplete="off" />
+		<label for="vhp_varnish_extra_purge_header_value">&nbsp;
+		<?php
+		if ( $disabled ) {
+			esc_html_e( 'The value has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
+		}
+		echo '</label>';
+	}
+
+	public function settings_purgeheaders_name_sanitize( $input ) {
+		$output      = '';
+		$set_message = '';
+		$set_type    = 'updated';
+
+		if ( ! is_string( $input ) || '' === trim( $input ) ) {
+			// Treat empty or non-string input as a request to clear the header.
+			$set_message = __( 'Purge header name cleared.', 'varnish-http-purge' );
+			$output      = '';
+		} else {
+			$set_message = __( 'Purge header name updated.', 'varnish-http-purge' );
+			$output      = sanitize_text_field( $input );
+		}
+
+		if ( $set_message ) {
+			add_settings_error( 'vhp_varnish_extra_purge_header_name', 'varnish-purgeheader', $set_message, $set_type );
+		}
+
+		return $output;
+	}
+
+	public function settings_purgeheaders_value_sanitize( $input ) {
+		$output      = '';
+		$set_message = '';
+		$set_type    = 'updated';
+
+		if ( ! is_string( $input ) || '' === trim( $input ) ) {
+			// Treat empty or non-string input as a request to clear the header value.
+			$set_message = __( 'Purge header value cleared.', 'varnish-http-purge' );
+			$output      = '';
+		} else {
+			$set_message = __( 'Purge header value updated.', 'varnish-http-purge' );
+			$output      = sanitize_text_field( $input );
+		}
+
+		if ( $set_message ) {
+			add_settings_error( 'vhp_varnish_extra_purge_header_value', 'varnish-purgeheader', $set_message, $set_type );
+		}
+
 		return $output;
 	}
 
@@ -647,6 +781,20 @@ sub vcl_recv {
 					submit_button( __( 'Save IP Settings', 'varnish-http-purge' ), 'secondary' );
 				?>
 				</form>
+
+				<form action="options.php" method="POST" >
+					<?php settings_fields( 'vhp-settings-purgeheader' ); ?>
+					<div class="vhp-accordion vhp-accordion-purgeheaders">
+						<button type="button" class="vhp-accordion-toggle" aria-expanded="false" aria-controls="vhp-accordion-panel-purgeheaders">
+							<span class="dashicons dashicons-arrow-right" aria-hidden="true"></span>
+							<span class="vhp-accordion-label"><?php esc_html_e( 'Advanced: Purge Headers', 'varnish-http-purge' ); ?></span>
+						</button>
+						<div id="vhp-accordion-panel-purgeheaders" class="vhp-accordion-panel" hidden>
+							<?php do_settings_sections( 'varnish-purgeheader-settings' ); ?>
+						</div>
+					</div>
+					<?php submit_button( __( 'Save Purge Header Settings', 'varnish-http-purge' ), 'primary' ); ?>
+				</form>
 				<?php
 			} else {
 				?>
@@ -656,6 +804,66 @@ sub vcl_recv {
 			}
 			?>
 		</div>
+		<style>
+		.vhp-accordion {
+			margin-top: 1.5em;
+			margin-bottom: 0.5em;
+		}
+		.vhp-accordion .vhp-accordion-toggle {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			font-size: 14px;
+			font-weight: 600;
+			margin: 0 0 0.5em 0;
+			background: none;
+			border: 0;
+			padding: 0;
+			color: #1d2327;
+			cursor: pointer;
+		}
+		.vhp-accordion .vhp-accordion-toggle:hover {
+			color: #2271b1;
+		}
+		.vhp-accordion .vhp-accordion-toggle .dashicons {
+			font-size: 16px;
+			line-height: 1;
+			transition: transform 0.15s ease-in-out;
+		}
+		.vhp-accordion .vhp-accordion-panel {
+			margin-left: 1.5em;
+		}
+		</style>
+		<script>
+		( function() {
+			document.addEventListener( 'DOMContentLoaded', function() {
+				var accordions = document.querySelectorAll( '.vhp-accordion' );
+				if ( ! accordions.length ) {
+					return;
+				}
+
+				accordions.forEach( function( container ) {
+					var button = container.querySelector( '.vhp-accordion-toggle' );
+					var panel  = container.querySelector( '.vhp-accordion-panel' );
+					if ( ! button || ! panel ) {
+						return;
+					}
+					var icon = button.querySelector( '.dashicons' );
+
+					button.addEventListener( 'click', function() {
+						var expanded = button.getAttribute( 'aria-expanded' ) === 'true';
+						button.setAttribute( 'aria-expanded', expanded ? 'false' : 'true' );
+						panel.hidden = expanded;
+
+						if ( icon ) {
+							icon.classList.toggle( 'dashicons-arrow-right', expanded );
+							icon.classList.toggle( 'dashicons-arrow-down', ! expanded );
+						}
+					} );
+				} );
+			} );
+		} )();
+		</script>
 		<?php
 	}
 
