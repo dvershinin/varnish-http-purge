@@ -55,30 +55,30 @@ class VarnishStatus {
 	public function register_settings() {
 		// Development Mode Settings.
 		register_setting( 'vhp-settings-devmode', 'vhp_varnish_devmode', array( &$this, 'settings_devmode_sanitize' ) );
-		add_settings_section( 'vhp-settings-devmode-section', __( 'Development mode settings', 'varnish-http-purge' ), array( &$this, 'options_settings_devmode' ), 'varnish-devmode-settings' );
-		add_settings_field( 'varnish_devmode', __( 'Development mode', 'varnish-http-purge' ), array( &$this, 'settings_devmode_callback' ), 'varnish-devmode-settings', 'vhp-settings-devmode-section' );
+		add_settings_section( 'vhp-settings-devmode-section', __( 'Development Mode Settings', 'varnish-http-purge' ), array( &$this, 'options_settings_devmode' ), 'varnish-devmode-settings' );
+		add_settings_field( 'varnish_devmode', __( 'Development Mode', 'varnish-http-purge' ), array( &$this, 'settings_devmode_callback' ), 'varnish-devmode-settings', 'vhp-settings-devmode-section' );
 
 		// Purge Method settings (Cache Tags)
 		register_setting( 'vhp-settings-tags', 'vhp_varnish_use_tags', array( &$this, 'settings_tags_sanitize' ) );
 		add_settings_section( 'vhp-settings-tags-section', __( 'Purge Method', 'varnish-http-purge' ), array( &$this, 'options_settings_tags' ), 'varnish-tags-settings' );
 		add_settings_field( 'varnish_use_tags', __( 'Use Cache Tags', 'varnish-http-purge' ), array( &$this, 'settings_tags_callback' ), 'varnish-tags-settings', 'vhp-settings-tags-section' );
 
-		// Purge All settings
+		// Purge All settings.
 		register_setting( 'vhp-settings-maxposts', 'vhp_varnish_max_posts_before_all', array( &$this, 'settings_maxposts_sanitize' ) );
-		add_settings_section( 'vhp-settings-maxposts-section', __( 'Maximum individual URLs before full purge', 'varnish-http-purge' ), array( &$this, 'options_settings_maxposts' ), 'varnish-maxposts-settings' );
-		add_settings_field( 'varnish_maxposts', __( 'Set max URLs', 'varnish-http-purge' ), array( &$this, 'settings_maxposts_callback' ), 'varnish-maxposts-settings', 'vhp-settings-maxposts-section' );
+		add_settings_section( 'vhp-settings-maxposts-section', __( 'Maximum Individual URLs before Full Purge', 'varnish-http-purge' ), array( &$this, 'options_settings_maxposts' ), 'varnish-maxposts-settings' );
+		add_settings_field( 'varnish_maxposts', __( 'Set Max URLs', 'varnish-http-purge' ), array( &$this, 'settings_maxposts_callback' ), 'varnish-maxposts-settings', 'vhp-settings-maxposts-section' );
 
 		// IP Settings.
 		register_setting( 'vhp-settings-ip', 'vhp_varnish_ip', array( &$this, 'settings_ip_sanitize' ) );
-		add_settings_section( 'vhp-settings-ip-section', __( 'Configure custom IP', 'varnish-http-purge' ), array( &$this, 'options_settings_ip' ), 'varnish-ip-settings' );
-		add_settings_field( 'varnish_ip', __( 'Set custom IP', 'varnish-http-purge' ), array( &$this, 'settings_ip_callback' ), 'varnish-ip-settings', 'vhp-settings-ip-section' );
+		add_settings_section( 'vhp-settings-ip-section', __( 'Configure Custom IP', 'varnish-http-purge' ), array( &$this, 'options_settings_ip' ), 'varnish-ip-settings' );
+		add_settings_field( 'varnish_ip', __( 'Set Custom IP', 'varnish-http-purge' ), array( &$this, 'settings_ip_callback' ), 'varnish-ip-settings', 'vhp-settings-ip-section' );
 
-		// Purge All settings
+		// Purge Headers settings.
 		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_name', array( &$this, 'settings_purgeheaders_name_sanitize' ) );
 		register_setting( 'vhp-settings-purgeheader', 'vhp_varnish_header_value', array( &$this, 'settings_purgeheaders_value_sanitize' ) );
-		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
-		add_settings_field( 'varnish_purgeheaders_name', __( 'Set purge header name', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_name_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
-		add_settings_field( 'varnish_purgeheaders_value', __( 'Set purge header value', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_value_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
+		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge Headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
+		add_settings_field( 'varnish_purgeheaders_name', __( 'Set Purge Header Name', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_name_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
+		add_settings_field( 'varnish_purgeheaders_value', __( 'Set Purge Header Value', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_value_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
 	}
 
 	/**
@@ -719,7 +719,7 @@ sub vcl_recv {
 				<?php
 					settings_fields( 'vhp-settings-devmode' );
 					do_settings_sections( 'varnish-devmode-settings' );
-					submit_button( __( 'Save devmode settings', 'varnish-http-purge' ), 'primary' );
+					submit_button( __( 'Save Devmode Settings', 'varnish-http-purge' ), 'primary' );
 				?>
 				</form>
 
@@ -735,7 +735,7 @@ sub vcl_recv {
 				<?php
 					settings_fields( 'vhp-settings-maxposts' );
 					do_settings_sections( 'varnish-maxposts-settings' );
-					submit_button( __( 'Save maxposts settings', 'varnish-http-purge' ), 'primary' );
+					submit_button( __( 'Save Maxposts Settings', 'varnish-http-purge' ), 'primary' );
 				?>
 				</form>
 
@@ -743,7 +743,7 @@ sub vcl_recv {
 				<?php
 					settings_fields( 'vhp-settings-ip' );
 					do_settings_sections( 'varnish-ip-settings' );
-					submit_button( __( 'Save IP settings', 'varnish-http-purge' ), 'secondary' );
+					submit_button( __( 'Save IP Settings', 'varnish-http-purge' ), 'secondary' );
 				?>
 				</form>
 
@@ -751,7 +751,7 @@ sub vcl_recv {
 					<?php
 					settings_fields( 'vhp-settings-purgeheader' );
 					do_settings_sections( 'varnish-purgeheader-settings' );
-					submit_button( __( 'Save purge header settings', 'varnish-http-purge' ), 'primary' );
+					submit_button( __( 'Save Purge Header Settings', 'varnish-http-purge' ), 'primary' );
 					?>
 				</form>
 				<?php
