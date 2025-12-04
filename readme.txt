@@ -14,11 +14,11 @@ Automatically empty proxy cached content when your site is modified.
 
 <strong>This plugin <em>does not</em> install nor configure a cache proxy. It acts as an interface with such services.</strong>
 
-One common method of caching content for websites is via the use of reverse proxy caching. Common examples of this are <a href="https://www.varnish-cache.org/">Varnish</a> and <a href="https://www.nginx.com/">NGINX</a>. These systems allow a website to update content and have the visitor's experience cached without the need for complex plugins storing the files locally and using up a user's disk space.
+One common method of caching content for websites is via the use of reverse proxy caching. Common examples of this are <a href="https://www.varnish-cache.org/">Varnish</a> and <a href="https://www.nginx.org/">NGINX</a>. These systems allow a website to update content and have the visitor's experience cached without the need for complex plugins storing the files locally and using up a user's disk space.
 
 A reverse proxy cache is installed in front of a server and reviews requests. If the page being requested is already cached, it delivers the cached content. Otherwise it generates the page and the cache on demand.
 
-The Proxy Cache Purge plugin sends a request to delete (aka flush) the cached data of a page or post every time it's modified.
+<strong>The Proxy Cache Purge plugin sends a request to delete (aka flush) the cached data of a page or post every time it's modified.</strong>
 
 = How It Works =
 
@@ -46,7 +46,7 @@ On a multisite network using subfolders, only <strong>network admins</strong> ca
 If you're working on a site and need to turn off caching in one of two ways:
 
 1. Add `define( 'VHP_DEVMODE', true );` to your `wp-config.php` file
-2. Go to Proxy Cache -> Settings and enable debug mode for 24 hours at a time
+2. Go to Proxy Cache -> Settings and enable Debug Mode for 24 hours at a time
 
 That will break cache on page loads. It is _not_ recommended for production!
 
@@ -105,22 +105,18 @@ Development mode allows you to disable the cache, temporarily.
 
 * `wp varnish devmode [<activate|deactivate|toggle>]` - Change development mode state
 
-= Privacy Policy =
-
-As of version 5, this plugin no longer uses any remote data.
-
 == Installation ==
 
 No special instructions apply.
 
 If you have a 3rd party proxy service (such as Sucuri or Cloudflare) you will need to add an IP address on the <em>Proxy Cache -> Settings</em> page. Alternatively you can add a define to your `wp-config.php` file: `define('VHP_VARNISH_IP','123.45.67.89');`
 
-When using Nginx based proxies, your IP will likely be `localhost`.
+When using NGINX based proxies, your IP will likely be `localhost`.
 
 = Requirements =
 
 * Pretty Permalinks enabled
-* A server based proxy cache service (such as Varnish or Nginx)
+* A server based proxy cache service (such as Varnish or NGINX)
 
 == Frequently Asked Questions ==
 
@@ -240,11 +236,15 @@ Due to the damage this can cause a site, access is limited to admins only. In th
 
 = Why do I still see cached content in development mode? =
 
-While development mode is on, your server will continue to cache content but the plugin will tell WordPress not to use the cached content. That means files that exist outside of WordPress (like CSS or images) _may_ serve cached content. The plugin does its best to add a No Cache parameter to javascript and CSS, however if a theme or plugin _doesn't_ use proper WordPress enqueues, then their cached content will be shown.
+While development mode is on, your server will continue to cache content but the plugin will tell WordPress not to use the cached content. That means files that exist outside of WordPress (like CSS or images) _may_ serve cached content. 
+
+The plugin does its best to add a No Cache parameter to javascript and CSS, however if a theme or plugin _doesn't_ use proper WordPress enqueues, then their cached content will be shown.
 
 = Why can I still flush cache while in development mode? =
 
-Because the server is still caching content. The plugin provides a way to flush the cache for those pages, as well as anything not included in WordPress, for your convenience.
+Because the server is still caching content. 
+
+The plugin provides a way to flush the cache for those pages, as well as anything not included in WordPress, for your convenience.
 
 = How can I tell if everything's caching? =
 
@@ -268,7 +268,9 @@ If you want to use WP-CLI, you can set an option in the database. This will not 
 
 = Why are my posts timing out/not showing when I'm using CloudFlare? =
 
-This is usually related to CloudFlare's APO setup. I have an open ticket with CloudFlare trying to debug this, but basically whatever they're doing with APO doesn't 'like' the flush command and times out (or crashes).
+This is usually related to CloudFlare's APO setup. 
+
+I have an open ticket with CloudFlare trying to debug this, but basically whatever they're doing with APO doesn't 'like' the flush command and times out (or crashes).
 
 = Why do I get a 503 or 504 error on every post update? =
 
@@ -288,11 +290,13 @@ You may enter them, separated by a comma, on the settings page.
 
 = What version of Varnish is supported? =
 
-So far this plugin has been reported to successfully function on Varnish v 2 through v 6.5.
+So far this plugin has been reported to successfully function on Varnish v2 through v6.5.
 
-= Does this work with Nginx caching? =
+= Does this work with NGINX caching? =
 
-It can, if you've configured Nginx caching to respect the curl PURGE request. If this doesn't work, try setting your Varnish IP to `localhost` as Nginx requires a service control installed for the IP address to work.
+It can, if you've configured NGINX caching to respect the curl PURGE request. 
+
+If this doesn't work, try setting your Varnish IP to `localhost` as NGINX requires a service control installed for the IP address to work.
 
 = What should my cache rules be? =
 
@@ -301,7 +305,7 @@ This is a question beyond the support of this plugin. I do not have the resource
 * To empty any cached data, the service will need to respect the PURGE command
 * Not all cache services set up PURGE by default
 * When flushing the whole cache, the plugin sends a PURGE command of <code>/.*</code> and sets the `X-Purge-Method` header to `regex`
-* Nginx expects the IP address to be 'localhost'
+* NGINX expects the IP address to be 'localhost'
 
 = How do I pass a Varnish control key or auth header? =
 
@@ -339,7 +343,7 @@ Important: This plugin sends HTTP PURGE requests to your cache service. It does 
 
 = How can I see what the plugin is sending to the cache service? =
 
-Yes _IF_ the service has an interface. Sadly Nginx does not. [Detailed directions can be found on the debugging section on GitHub](https://github.com/dvershinin/varnish-http-purge/wiki). Bear in mind, these interfaces tend to be command-line only.
+Yes _IF_ the service has an interface. Sadly NGINX does not. [Detailed directions can be found on the debugging section on GitHub](https://github.com/dvershinin/varnish-http-purge/wiki). Bear in mind, these interfaces tend to be command-line only.
 
 = Caching is detected but cannot be confirmed. What does that mean? =
 
@@ -347,7 +351,7 @@ It means that somewhere your server's headers aren't returning the data the plug
 
 = I have renamed X-Varnish header for security reasons and Site Health Check says no cache service =
 
-You can use <code>varnish_http_purge_x_varnish_header_name</code> filter to customize this header name, like so:
+You can use <code>varnish_http_purge_x_varnish_header_name</code> filter to customize this header name, like below to resolve this:
 
 <code>
 function change_varnish_header( $default_header ) {
@@ -358,8 +362,7 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 
 == Changelog ==
 
-= 5.3.0 =
-* September 2025
+= 5.3.0 (2025-09) =
 * New: `VHP_EXCLUDED_POST_STATUSES` define to exclude statuses (e.g. drafts) from purge triggers.
 * New: `varnish_http_purge_valid_post_statuses` filter to customize statuses programmatically.
 * Fix: REST URL generation for tags and custom taxonomies; respect `rest_base` and use term IDs.
@@ -368,15 +371,16 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 * Fix: Correct per-host IP loop in purge header filtering.
 * Fix: Properly strip query strings when deduplicating purge URLs.
 * Fix: Debugger `wp_remote_get` args and header checks (Via header scalar/array).
-* Minor: Typo fix in Devmode settings message.
+* Polish: Typo fix in DevMode settings message.
 
-= 5.2.1 =
-* January 2024
-* Allow custom X-Varnish header name.
+= 5.2.2 (2024-08) =
+* Fix: Warning / Notices resolved.
 
-= 5.2.0 =
-* July 2023
-* Fix debug for if Via headers are an array (props @iverok)
+= 5.2.1 (2024-01) =
+* New: Allow custom X-Varnish header name.
+
+= 5.2.0 (2023-07) =
+* Fix: Debug if Via headers are an array.
 
 == Screenshots ==
 
