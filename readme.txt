@@ -331,8 +331,8 @@ add_filter( 'varnish_http_purge_headers', function( $headers ) {
     $headers['X-Control-Key'] = 'YOUR_CONTROL_KEY_HERE';
 
     // Or use Authorization headers:
-    $headers['Authorization'] = 'Basic ' . base64_encode( 'username:password' );
-    $headers['Authorization'] = 'Bearer ' . 'YOUR_TOKEN_HERE';
+    // $headers['Authorization'] = 'Basic ' . base64_encode( 'username:password' );
+    // $headers['Authorization'] = 'Bearer ' . 'YOUR_TOKEN_HERE';
 
     return $headers;
 } );

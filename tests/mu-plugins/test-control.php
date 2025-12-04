@@ -220,6 +220,75 @@ add_action( 'rest_api_init', function() {
         },
         'permission_callback' => '__return_true',
     ) );
+
+    // Configure custom purge header name/value for tests.
+    register_rest_route( 'test/v1', '/purge-header-options', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $name  = $req->get_param( 'name' );
+            $value = $req->get_param( 'value' );
+
+            // When either value is not a string, treat this as a reset to defaults.
+            if ( ! is_string( $name ) || ! is_string( $value ) ) {
+                delete_site_option( 'vhp_varnish_header_name' );
+                delete_site_option( 'vhp_varnish_header_value' );
+            } else {
+                $name  = trim( $name );
+                $value = trim( $value );
+
+                if ( '' === $name || '' === $value ) {
+                    delete_site_option( 'vhp_varnish_header_name' );
+                    delete_site_option( 'vhp_varnish_header_value' );
+                } else {
+                    update_site_option( 'vhp_varnish_header_name', sanitize_text_field( $name ) );
+                    update_site_option( 'vhp_varnish_header_value', sanitize_text_field( $value ) );
+                }
+            }
+
+            return array(
+                'ok'    => true,
+                'name'  => get_site_option( 'vhp_varnish_header_name' ),
+                'value' => get_site_option( 'vhp_varnish_header_value' ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Inspect headers that would be sent with a PURGE request.
+    register_rest_route( 'test/v1', '/purge-headers', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $url = $req->get_param( 'url' );
+            if ( ! is_string( $url ) || '' === $url ) {
+                $url = home_url( '/' );
+            }
+
+            $captured = null;
+            $callback = function( $headers ) use ( &$captured ) {
+                $captured = $headers;
+                return $headers;
+            };
+
+            add_filter( 'varnish_http_purge_headers', $callback, 9999 );
+
+            if ( class_exists( 'VarnishPurger' ) ) {
+                VarnishPurger::purge_url( esc_url_raw( $url ) );
+            }
+
+            remove_filter( 'varnish_http_purge_headers', $callback, 9999 );
+
+            if ( ! is_array( $captured ) ) {
+                return new WP_Error( 'no_headers', 'Failed to capture purge headers', array( 'status' => 500 ) );
+            }
+
+            return array(
+                'ok'      => true,
+                'url'     => $url,
+                'headers' => $captured,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
 } );
 
 // Keep tag-pattern headers deliberately small in tests to exercise batching logic.

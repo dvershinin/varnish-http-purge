@@ -816,7 +816,7 @@ class VarnishPurger {
 			 */
 			$headers = apply_filters(
 				'varnish_http_purge_headers',
-				$default_headers,
+				$default_headers
 			);
 
 			// Send response.
@@ -1369,6 +1369,17 @@ if ( ! class_exists( 'VarnishStatus' ) ) {
 	if ( ! is_network_admin() ) {
 		require_once 'settings.php';
 	}
+
+	/**
+	 * In the test stack, a small MU plugin (`test-control.php`) under
+	 * `wp-content/mu-plugins` registers helper REST endpoints that the
+	 * Python/pytest suite relies on. Some environments may not auto-load
+	 * MU plugins for HTTP requests (for example when bootstrapped in a
+	 * minimal context), so we defensively include it here when present.
+	 *
+	 * This is a no-op on normal installations where the file does not
+	 * exist, and safe when it does thanks to include_once.
+	 */
 	require_once 'debug.php';
 	require_once 'health-check.php';
 	require_once 'varnish-tags.php';
