@@ -281,7 +281,7 @@
 * Per request of Jetpack team, added in a <code>wp_cache_flush()</code> call when manually purging. This should only impact server side PHP caches (APC, Memcached etc)
 
 = 3.3.2 =
-* Varnish IP was too persnickity in PHP 5.4 (added in an 'and if not null' check - props <a href="http://wordpress.org/support/topic/patch-a-little-patch-to-purge-on-comment-posting">colinleroy</a>)
+* Varnish IP was too persnickity in PHP 5.4 (added in an 'and if not null' check - props <a href="https://wordpress.org/support/topic/patch-a-little-patch-to-purge-on-comment-posting">colinleroy</a>)
 
 = 3.3.1 =
 * Language Pack fixing.
@@ -318,7 +318,7 @@
 
 = 2.0 =
 * Commit access handed to Ipstenu
-* Changed CURL to wp_remote_request (thank you <a href="http://wordpress.org/support/topic/incompatability-with-editorial-calendar-plugin?replies=1">Kenn Wilson</a>) so we don't have to do <a href="http://wordpress.org/support/topic/plugin-varnish-http-purge-incompatibility-with-woocommerce?replies=6">CURLOPT_RETURNTRANSFER</a> Remember kids, CURL is okay, but wp_remote_request is more better.
+* Changed CURL to wp_remote_request (thank you <a href="https://wordpress.org/support/topic/incompatability-with-editorial-calendar-plugin?replies=1">Kenn Wilson</a>) so we don't have to do <a href="https://wordpress.org/support/topic/plugin-varnish-http-purge-incompatibility-with-woocommerce?replies=6">CURLOPT_RETURNTRANSFER</a> Remember kids, CURL is okay, but wp_remote_request is more better.
 
 = 1.2.0 =
 * Moved actual request execution to "shutdown" event

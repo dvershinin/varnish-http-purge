@@ -24,7 +24,7 @@ The Proxy Cache Purge plugin sends a request to delete (aka flush) the cached da
 
 When content on a site is updated by WordPress, the plugin reaches out to the proxy cache service with the URL of the page, requesting the cache be deleted.
 
-Not all page are deleted from the cache on every change. For example, when a post, page, or custom post type is edited, or a new comment is added, <em>only</em> the following pages will purge:
+Not all pages are deleted from the cache on every change. For example, when a post, page, or custom post type is edited, or a new comment is added, <em>only</em> the following pages will purge:
 
 * The front page
 * The post/page edited
@@ -111,13 +111,15 @@ I worked at DreamHost from 2012 to 2022, and have maintained the plugin since ar
 
 As of October 2023, this plugin is _NO LONGER_ installed by default on DreamPress.
 
+Today, the plugin is maintained by [GetPageSpeed](https://www.getpagespeed.com/), with a focus on advanced NGINX and proxy caching deployments and strong compatibility with the [NGINX cache-purge module](https://nginx-extras.getpagespeed.com/modules/cache-purge/) from the [NGINX Extras](https://nginx-extras.getpagespeed.com/) collection.
+
 = Is this plugin caching my data? =
 
 No. This plugin tells your cache system when content is updated, and to delete the cached data at that time.
 
 = Why doesn't the plugin automatically delete the whole cache? =
 
-Speed and stability. Emptying too much of a cache on every change can slow a server down. This plugin does it's best to determine what needs to be deleted and when, while providing hooks for developers to use as necessary.
+Speed and stability. Emptying too much of a cache on every change can slow a server down. This plugin does its best to determine what needs to be deleted and when, while providing hooks for developers to use as necessary.
 
 = How many cached files are deleted when a post is updated? =
 
@@ -195,13 +197,13 @@ You can use development mode to have WordPress attempt to tell your proxy servic
 
 There are three ways to do this:
 
-1. Chose 'Pause Cache (24hrs)' from the Cache dropdown menu in your toolbar
+1. Choose 'Pause Cache (24hrs)' from the Cache dropdown menu in your toolbar
 2. Go to Proxy Cache -> Settings and enable development mode
 3. Add `define( 'VHP_DEVMODE', true );` to your `wp-config.php` file.
 
-The first two options will enable development mode for 24 hours. If you're working on long term development, you can should use the define.
+The first two options will enable development mode for 24 hours. If you're working on long term development, you should use the define.
 
-It is _not_ recommended you use development mode on production sites for extended periods of time, as it _will_ will slow your site down and lose all the benefits of caching in the first place.
+It is _not_ recommended you use development mode on production sites for extended periods of time, as it _will_ slow your site down and lose all the benefits of caching in the first place.
 
 = Why is the restart cache button missing? =
 
@@ -221,7 +223,7 @@ Because the server is still caching content. The plugin provides a way to flush 
 
 = How can I tell if everything's caching? =
 
-From your WordPress Dashboard, go to <em>Proxy Cache > Check Caching</em>. There a page will auto-scan your front page and report back any issues found. This includes any known problematic plugins. You can use it to scan any URL on your domain.
+From your WordPress Dashboard, go to <em>Proxy Cache > Check Caching</em>. There, a page will auto-scan your front page and report back any issues found. This includes any known problematic plugins. You can use it to scan any URL on your domain.
 
 = Why is nothing caching when I use PageSpeed? =
 
@@ -237,7 +239,7 @@ On single-site, you can edit this via the <em>Proxy Cache > Check Caching</em> p
 
 Replace `123.45.67.89` with the IP of your <em>Proxy Cache Server</em> (_not_ CloudFlare). **DO NOT** put http in this define. If you're on nginx, you'll want to use `localhost` instead of an IP address.
 
-If you want to use WP-CLI, you can set an option in the database. This will not take precedence over the define, and exists for people who want to use automation tools: `wp option update vhp_varnish_ip 123.45.67.890`
+If you want to use WP-CLI, you can set an option in the database. This will not take precedence over the define, and exists for people who want to use automation tools: `wp option update vhp_varnish_ip 123.45.67.89`
 
 = Why are my posts timing out/not showing when I'm using CloudFlare? =
 

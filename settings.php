@@ -565,12 +565,12 @@ class VarnishStatus {
 		global $current_screen;
 
 		if ( ! empty( $current_screen->parent_base ) && strpos( $current_screen->parent_base, 'varnish-page' ) !== false ) {
-			$review_url  = 'https://wordpress.org/support/plugin/varnish-http-purge/reviews/?filter=5#new-post';
-			$dream_url   = 'https://dreamhost.com/dreampress/';
-			$footer_text = sprintf(
+			$review_url       = 'https://wordpress.org/support/plugin/varnish-http-purge/reviews/?filter=5#new-post';
+			$getpagespeed_url = 'https://www.getpagespeed.com/';
+			$footer_text      = sprintf(
 				wp_kses(
-					/* translators: $1$s - DreamHost URL; $2$s - plugin name; $3$s - WP.org review link; $4$s - WP.org review link. */
-					__( 'Brought to you <a href="%1$s" target="_blank" rel="noopener noreferrer">DreamHost</a>. Please rate %2$s <a href="%3$s" target="_blank" rel="noopener noreferrer">&#9733;&#9733;&#9733;&#9733;&#9733;</a> on <a href="%4$s" target="_blank" rel="noopener">WordPress.org</a> to help us spread the word.', 'varnish-http-purge' ),
+					/* translators: $1$s - GetPageSpeed URL; $2$s - plugin name; $3$s - WP.org review link; $4$s - WP.org review link. */
+					__( 'Maintained by <a href="%1$s" target="_blank" rel="noopener noreferrer">GetPageSpeed</a>. Please rate %2$s <a href="%3$s" target="_blank" rel="noopener noreferrer">&#9733;&#9733;&#9733;&#9733;&#9733;</a> on <a href="%4$s" target="_blank" rel="noopener">WordPress.org</a> to help us spread the word.', 'varnish-http-purge' ),
 					array(
 						'a' => array(
 							'href'   => array(),
@@ -579,7 +579,7 @@ class VarnishStatus {
 						),
 					)
 				),
-				$dream_url,
+				$getpagespeed_url,
 				'<strong>Proxy Cache Purge</strong>',
 				$review_url,
 				$review_url
