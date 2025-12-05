@@ -108,14 +108,21 @@ add_action( 'rest_api_init', function() {
             );
 
             // Allow tests to explicitly control scheduling fields for future posts.
+            // Convert any parseable date format to MySQL datetime format (YYYY-MM-DD HH:MM:SS).
             $date = $req->get_param( 'date' );
             if ( is_string( $date ) && '' !== $date ) {
-                $postarr['post_date'] = $date;
+                $ts = strtotime( $date );
+                if ( false !== $ts ) {
+                    $postarr['post_date'] = gmdate( 'Y-m-d H:i:s', $ts );
+                }
             }
 
             $date_gmt = $req->get_param( 'date_gmt' );
             if ( is_string( $date_gmt ) && '' !== $date_gmt ) {
-                $postarr['post_date_gmt'] = $date_gmt;
+                $ts = strtotime( $date_gmt );
+                if ( false !== $ts ) {
+                    $postarr['post_date_gmt'] = gmdate( 'Y-m-d H:i:s', $ts );
+                }
             }
 
             $post_id = wp_insert_post( $postarr );

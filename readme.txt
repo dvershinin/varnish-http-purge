@@ -84,6 +84,22 @@ On busy sites, sending many PURGE requests directly from admin requests can slow
 
 Object-cache purges (the \"Purge Database Cache\" option) remain synchronous and are not affected by this behaviour. The Proxy Cache settings page and Site Health integration expose basic queue status so you can verify that background purging is healthy; if the queue appears large or very old, check that your system cron is correctly invoking WordPress cron.
 
+<strong>Important: Cron Frequency and Cache Freshness</strong>
+
+When using background purging, the frequency of your system cron determines how quickly cache invalidations are processed. The longer the interval between cron runs, the longer visitors may see stale content after updates.
+
+For minimal stale content, run your system cron every minute:
+
+<code>
+* * * * * /usr/bin/php /var/www/html/wp-cron.php
+</code>
+
+If you can tolerate slightly longer delays, every 2-5 minutes is also acceptable. However, running cron less frequently (e.g., every 15 minutes) means cache purges may be delayed by that amount after content changes.
+
+<strong>Note:</strong> Scheduled posts are handled specially. When a scheduled post is published via WP-Cron, the cache is purged synchronously within the same cron run, ensuring immediate cache invalidation without waiting for the next cron execution.
+
+For detailed instructions on setting up a proper Linux-based WordPress cron, see: <a href="https://www.getpagespeed.com/web-apps/wordpress/wordpress-cron-optimization">WordPress Cron Optimization</a>.
+
 == WP CLI ==
 
 <strong>Purge</strong>
