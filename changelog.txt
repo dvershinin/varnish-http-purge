@@ -1,5 +1,13 @@
 ## CHANGELOG
 
+= 5.5.0 =
+* December 2025
+* Fix: Scheduled posts now properly purge cache when auto-published via WP-Cron. Previously, purges were queued but not processed until the next cron run, leaving stale content.
+* New: Added `transition_post_status` hook to handle future → publish transitions synchronously, ensuring immediate cache invalidation for scheduled posts.
+* New: Shortlink URLs (`?p=XXX`) are now purged when scheduled posts publish, clearing any cached 404 responses.
+* Doc: Added guidance on cron frequency for background purging mode.
+* Dev: New pytest coverage for scheduled post publishing via WP-Cron.
+
 = 5.4.0 =
 * December 2025
 * New (BETA): Optional Cache Tags / Surrogate Key purge mode, controlled via the \"Use Cache Tags\" setting.
