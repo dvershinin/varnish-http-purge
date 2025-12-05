@@ -251,6 +251,11 @@ class VarnishPurger {
 		// Register the async purge queue processor for WP-Cron.
 		add_action( 'vhp_process_purge_queue', array( $this, 'process_purge_queue' ) );
 
+		// Handle scheduled posts transitioning to publish (future → publish).
+		// This fires when WP-Cron publishes a scheduled post and ensures the
+		// cache is purged synchronously, bypassing the async queue.
+		add_action( 'transition_post_status', array( $this, 'purge_on_future_to_publish' ), 10, 3 );
+
 		// Success: Admin notice when purging.
 		if ( ( isset( $_GET['vhp_flush_all'] ) && check_admin_referer( 'vhp-flush-all' ) ) ||
 			( isset( $_GET['vhp_flush_do'] ) && check_admin_referer( 'vhp-flush-do' ) ) ) {
@@ -1557,6 +1562,94 @@ class VarnishPurger {
 				 * @param array  $headers  The headers sent with the PURGE request.
 				 */
 				do_action( 'after_purge_tags', $tags, $pattern, $purgeme, $response, $headers );
+			}
+		}
+	}
+
+	/**
+	 * Purge on Scheduled Post Publish
+	 *
+	 * When a scheduled post transitions from 'future' to 'publish' (typically
+	 * via WP-Cron), this method ensures the cache is purged synchronously.
+	 * This bypasses the async queue because we're already in a cron context
+	 * and the user expects immediate cache invalidation.
+	 *
+	 * Additionally, this method purges the shortlink URL (?p=XXX) which may
+	 * have been cached with a 404 response while the post was scheduled.
+	 *
+	 * @since 5.5.0
+	 * @access public
+	 * @param string  $new_status New post status.
+	 * @param string  $old_status Old post status.
+	 * @param WP_Post $post       Post object.
+	 * @return void
+	 */
+	public function purge_on_future_to_publish( $new_status, $old_status, $post ) {
+		// Only act on future → publish transitions (scheduled posts being published).
+		if ( 'future' !== $old_status || 'publish' !== $new_status ) {
+			return;
+		}
+
+		// Bail if not a valid post object.
+		if ( ! is_object( $post ) || ! isset( $post->ID ) ) {
+			return;
+		}
+
+		$post_id = $post->ID;
+
+		// Skip invalid post types.
+		$invalid_post_type = array( 'nav_menu_item', 'revision' );
+		$this_post_type    = get_post_type( $post_id );
+		if ( in_array( $this_post_type, $invalid_post_type, true ) ) {
+			return;
+		}
+
+		// If using tag-based purging, purge by tags synchronously.
+		if ( get_site_option( 'vhp_varnish_use_tags' ) && class_exists( 'VarnishTags' ) ) {
+			$tags = VarnishTags::get_purge_tags_for_post( $post_id );
+			$this->purge_tags( $tags );
+
+			// Also purge the shortlink URL which may have cached 404/redirect.
+			$shortlink = $this->the_home_url() . '/?p=' . $post_id;
+			$this->purge_url( $shortlink );
+
+			return;
+		}
+
+		// Generate purge URLs for this post using the existing logic, but store
+		// them temporarily so we can purge synchronously.
+		$original_purge_urls = $this->purge_urls;
+		$this->purge_urls    = array();
+
+		// Call purge_post to populate $this->purge_urls with the URLs to purge.
+		$this->purge_post( $post_id );
+
+		$urls_to_purge    = array_unique( $this->purge_urls );
+		$this->purge_urls = $original_purge_urls;
+
+		// Also add the shortlink URL which may have been cached with a 404 or
+		// redirect while the post was in 'future' status.
+		$shortlink       = $this->the_home_url() . '/?p=' . $post_id;
+		$urls_to_purge[] = $shortlink;
+		$urls_to_purge   = array_unique( $urls_to_purge );
+
+		// Purge each URL synchronously (bypass the cron queue).
+		if ( ! empty( $urls_to_purge ) ) {
+			// Check against max posts limit.
+			$count = count( $urls_to_purge );
+			if ( defined( 'VHP_VARNISH_MAXPOSTS' ) && false !== VHP_VARNISH_MAXPOSTS ) {
+				$max_posts = VHP_VARNISH_MAXPOSTS;
+			} else {
+				$max_posts = get_site_option( 'vhp_varnish_max_posts_before_all' );
+			}
+
+			if ( $max_posts <= $count ) {
+				// Too many URLs, purge all instead.
+				$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
+			} else {
+				foreach ( $urls_to_purge as $url ) {
+					$this->purge_url( $url );
+				}
 			}
 		}
 	}

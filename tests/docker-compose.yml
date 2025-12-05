@@ -125,6 +125,7 @@ services:
     command: -q -c tests/pytest.ini
     environment:
       WP_URL: http://varnish
+      WP_BACKEND_URL: http://wordpress
     dns_opt:
       - ndots:0
       - attempts:1

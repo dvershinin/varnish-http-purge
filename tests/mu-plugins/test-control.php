@@ -95,16 +95,30 @@ add_action( 'rest_api_init', function() {
     register_rest_route( 'test/v1', '/post', array(
         'methods' => 'POST',
         'callback' => function( WP_REST_Request $req ) {
-            $title = $req->get_param('title') ?: 'Test Title';
-            $content = $req->get_param('content') ?: 'Test Content';
-            $status = $req->get_param('status') ?: 'publish';
-            $type = $req->get_param('type') ?: 'post';
-            $post_id = wp_insert_post( array(
-                'post_title' => $title,
+            $title   = $req->get_param( 'title' ) ?: 'Test Title';
+            $content = $req->get_param( 'content' ) ?: 'Test Content';
+            $status  = $req->get_param( 'status' ) ?: 'publish';
+            $type    = $req->get_param( 'type' ) ?: 'post';
+
+            $postarr = array(
+                'post_title'   => $title,
                 'post_content' => $content,
-                'post_status' => $status,
-                'post_type' => $type,
-            ) );
+                'post_status'  => $status,
+                'post_type'    => $type,
+            );
+
+            // Allow tests to explicitly control scheduling fields for future posts.
+            $date = $req->get_param( 'date' );
+            if ( is_string( $date ) && '' !== $date ) {
+                $postarr['post_date'] = $date;
+            }
+
+            $date_gmt = $req->get_param( 'date_gmt' );
+            if ( is_string( $date_gmt ) && '' !== $date_gmt ) {
+                $postarr['post_date_gmt'] = $date_gmt;
+            }
+
+            $post_id = wp_insert_post( $postarr );
             if ( is_wp_error( $post_id ) ) {
                 return $post_id;
             }
@@ -399,6 +413,86 @@ add_action( 'rest_api_init', function() {
                 'headers'     => $captures,
                 'queue_after' => $queue_after,
                 'last_run'    => (int) get_site_option( 'vhp_varnish_last_queue_run', 0 ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
+// Debug endpoint: trace what URLs would be purged for a scheduled post publish.
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/debug-scheduled-purge/(?P<id>\d+)', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $post_id = intval( $req['id'] );
+            $post = get_post( $post_id );
+
+            if ( ! $post ) {
+                return new WP_Error( 'not_found', 'Post not found', array( 'status' => 404 ) );
+            }
+
+            $result = array(
+                'post_id' => $post_id,
+                'status'  => $post->post_status,
+                'type'    => $post->post_type,
+                'url'     => get_permalink( $post_id ),
+            );
+
+            // Check if VarnishPurger is available.
+            if ( ! class_exists( 'VarnishPurger' ) ) {
+                $result['error'] = 'VarnishPurger class not found';
+                return $result;
+            }
+
+            // Trace URL generation.
+            $vp = new VarnishPurger();
+            $urls = $vp->generate_urls( $post_id );
+            $result['generated_urls'] = $urls;
+
+            // Simulate what purge_on_future_to_publish would do.
+            $result['method_exists'] = method_exists( $vp, 'purge_on_future_to_publish' );
+
+            return $result;
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Endpoint to simulate the transition and capture purge actions.
+    register_rest_route( 'test/v1', '/simulate-publish/(?P<id>\d+)', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $post_id = intval( $req['id'] );
+            $post = get_post( $post_id );
+
+            if ( ! $post ) {
+                return new WP_Error( 'not_found', 'Post not found', array( 'status' => 404 ) );
+            }
+
+            // Capture purge URLs.
+            $captured_urls = array();
+            $capture_callback = function( $parsed_url, $purgeme, $response, $headers ) use ( &$captured_urls ) {
+                $captured_urls[] = array(
+                    'url'     => $parsed_url,
+                    'purgeme' => $purgeme,
+                    'status'  => is_wp_error( $response ) ? 'error' : wp_remote_retrieve_response_code( $response ),
+                );
+            };
+            add_action( 'after_purge_url', $capture_callback, 10, 4 );
+
+            // If post is 'future', transition it to 'publish'.
+            $old_status = $post->post_status;
+            if ( 'future' === $old_status ) {
+                wp_publish_post( $post_id );
+                $post = get_post( $post_id );
+            }
+
+            remove_action( 'after_purge_url', $capture_callback, 10 );
+
+            return array(
+                'post_id'       => $post_id,
+                'old_status'    => $old_status,
+                'new_status'    => $post->post_status,
+                'captured_urls' => $captured_urls,
             );
         },
         'permission_callback' => '__return_true',
