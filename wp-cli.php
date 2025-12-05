@@ -311,6 +311,106 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 				WP_CLI\Utils\format_items( $format, $items, array( 'name', 'status', 'message' ) );
 			}
 		} // End Debug.
+
+		/**
+		 * Inspect or manage the async purge queue used when cron-mode is enabled.
+		 *
+		 * This command is primarily intended for operational use and mirrors the
+		 * behaviour of the background WP-Cron processor.
+		 *
+		 * ## OPTIONS
+		 *
+		 * <action>
+		 * : The queue action to perform.
+		 * ---
+		 * options:
+		 *   - status
+		 *   - process
+		 *   - clear
+		 * ---
+		 *
+		 * ## EXAMPLES
+		 *
+		 *     # Show queue status
+		 *     wp varnish queue status
+		 *
+		 *     # Process any pending items immediately
+		 *     wp varnish queue process
+		 *
+		 *     # Clear the queue without processing
+		 *     wp varnish queue clear
+		 *
+		 * @param array $args       Positional arguments.
+		 * @param array $assoc_args Associative arguments.
+		 */
+		public function queue( $args, $assoc_args ) {
+			$action = isset( $args[0] ) ? sanitize_key( $args[0] ) : 'status';
+
+			if ( ! class_exists( 'VarnishPurger' ) ) {
+				WP_CLI::error( __( 'VarnishPurger class is not available. Is the plugin active?', 'varnish-http-purge' ) );
+			}
+
+			$queue = get_site_option( VarnishPurger::PURGE_QUEUE_OPTION, array() );
+			if ( ! is_array( $queue ) ) {
+				$queue = array();
+			}
+
+			$full            = ( isset( $queue['full'] ) && $queue['full'] );
+			$urls            = ( isset( $queue['urls'] ) && is_array( $queue['urls'] ) ) ? $queue['urls'] : array();
+			$tags            = ( isset( $queue['tags'] ) && is_array( $queue['tags'] ) ) ? $queue['tags'] : array();
+			$created_at      = isset( $queue['created_at'] ) ? (int) $queue['created_at'] : 0;
+			$last_updated_at = isset( $queue['last_updated_at'] ) ? (int) $queue['last_updated_at'] : 0;
+			$last_run        = (int) get_site_option( 'vhp_varnish_last_queue_run', 0 );
+
+			switch ( $action ) {
+				case 'clear':
+					delete_site_option( VarnishPurger::PURGE_QUEUE_OPTION );
+					WP_CLI::success( __( 'Proxy Cache Purge queue cleared.', 'varnish-http-purge' ) );
+					break;
+
+				case 'process':
+					// Run the same processor that WP-Cron uses.
+					$this->varnish_purge->process_purge_queue();
+					WP_CLI::success( __( 'Proxy Cache Purge queue processed.', 'varnish-http-purge' ) );
+					break;
+
+				case 'status':
+				default:
+					$data = array(
+						array(
+							'field' => 'cron_mode_enabled',
+							'value' => VarnishPurger::is_cron_purging_enabled_static() ? 'yes' : 'no',
+						),
+						array(
+							'field' => 'full_purge_queued',
+							'value' => $full ? 'yes' : 'no',
+						),
+						array(
+							'field' => 'queued_urls',
+							'value' => count( $urls ),
+						),
+						array(
+							'field' => 'queued_tags',
+							'value' => count( $tags ),
+						),
+						array(
+							'field' => 'queue_created_at',
+							'value' => $created_at ? date_i18n( 'Y-m-d H:i:s', $created_at ) : '',
+						),
+						array(
+							'field' => 'queue_last_updated_at',
+							'value' => $last_updated_at ? date_i18n( 'Y-m-d H:i:s', $last_updated_at ) : '',
+						),
+						array(
+							'field' => 'last_queue_run',
+							'value' => $last_run ? date_i18n( 'Y-m-d H:i:s', $last_run ) : '',
+						),
+					);
+
+					WP_CLI\Utils\format_items( 'table', $data, array( 'field', 'value' ) );
+					break;
+			}
+		}
 	}
 }
 

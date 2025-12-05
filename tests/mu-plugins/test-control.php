@@ -207,6 +207,43 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
+    // Control cron-based purge mode for tests.
+    register_rest_route( 'test/v1', '/cron-mode', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $mode = $req->get_param( 'mode' );
+            if ( ! is_string( $mode ) ) {
+                $mode = 'auto';
+            }
+            $mode = strtolower( $mode );
+
+            switch ( $mode ) {
+                case 'force_on':
+                    update_site_option( 'vhp_varnish_force_cron_mode', 'on' );
+                    break;
+                case 'force_off':
+                    update_site_option( 'vhp_varnish_force_cron_mode', 'off' );
+                    break;
+                default:
+                    delete_site_option( 'vhp_varnish_force_cron_mode' );
+                    $mode = 'auto';
+                    break;
+            }
+
+            $enabled = false;
+            if ( class_exists( 'VarnishPurger' ) ) {
+                $enabled = VarnishPurger::is_cron_purging_enabled_static();
+            }
+
+            return array(
+                'ok'      => true,
+                'mode'    => $mode,
+                'enabled' => (bool) $enabled,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     register_rest_route( 'test/v1', '/post/(?P<id>\d+)', array(
         'methods' => 'PUT',
         'callback' => function( WP_REST_Request $req ) {
@@ -221,7 +258,7 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
-            // Configure custom purge header name/value for tests.
+    // Configure custom purge header name/value for tests.
     register_rest_route( 'test/v1', '/purge-header-options', array(
         'methods' => 'POST',
         'callback' => function( WP_REST_Request $req ) {
@@ -247,8 +284,8 @@ add_action( 'rest_api_init', function() {
 
             return array(
                 'ok'    => true,
-                        'name'  => get_site_option( 'vhp_varnish_extra_purge_header_name' ),
-                        'value' => get_site_option( 'vhp_varnish_extra_purge_header_value' ),
+                'name'  => get_site_option( 'vhp_varnish_extra_purge_header_name' ),
+                'value' => get_site_option( 'vhp_varnish_extra_purge_header_value' ),
             );
         },
         'permission_callback' => '__return_true',
@@ -289,6 +326,98 @@ add_action( 'rest_api_init', function() {
         },
         'permission_callback' => '__return_true',
     ) );
+
+    // Inspect the async purge queue for tests.
+    register_rest_route( 'test/v1', '/purge-queue', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            $queue = array();
+            if ( class_exists( 'VarnishPurger' ) ) {
+                $queue = get_site_option( VarnishPurger::PURGE_QUEUE_OPTION, array() );
+            }
+            if ( ! is_array( $queue ) ) {
+                $queue = array();
+            }
+
+            $full            = ( isset( $queue['full'] ) && $queue['full'] );
+            $urls            = ( isset( $queue['urls'] ) && is_array( $queue['urls'] ) ) ? array_values( $queue['urls'] ) : array();
+            $tags            = ( isset( $queue['tags'] ) && is_array( $queue['tags'] ) ) ? array_values( $queue['tags'] ) : array();
+            $created_at      = isset( $queue['created_at'] ) ? (int) $queue['created_at'] : 0;
+            $last_updated_at = isset( $queue['last_updated_at'] ) ? (int) $queue['last_updated_at'] : 0;
+
+            return array(
+                'ok'    => true,
+                'queue' => array(
+                    'full'            => $full,
+                    'urls'            => $urls,
+                    'tags'            => $tags,
+                    'created_at'      => $created_at,
+                    'last_updated_at' => $last_updated_at,
+                ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Clear the async purge queue between tests.
+    register_rest_route( 'test/v1', '/purge-queue/clear', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( class_exists( 'VarnishPurger' ) ) {
+                delete_site_option( VarnishPurger::PURGE_QUEUE_OPTION );
+            }
+            return array( 'ok' => true );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Run the async purge queue processor and capture any PURGE headers that would be sent.
+    register_rest_route( 'test/v1', '/run-cron-processor', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishPurger' ) ) {
+                return new WP_Error( 'no_purger', 'VarnishPurger class not available', array( 'status' => 500 ) );
+            }
+
+            $captures = array();
+            $callback = function( $headers ) use ( &$captures ) {
+                $captures[] = $headers;
+                return $headers;
+            };
+
+            add_filter( 'varnish_http_purge_headers', $callback, 9999 );
+
+            $vp = new VarnishPurger();
+            $vp->process_purge_queue();
+
+            remove_filter( 'varnish_http_purge_headers', $callback, 9999 );
+
+            $queue_after = get_site_option( VarnishPurger::PURGE_QUEUE_OPTION, array() );
+
+            return array(
+                'ok'          => true,
+                'headers'     => $captures,
+                'queue_after' => $queue_after,
+                'last_run'    => (int) get_site_option( 'vhp_varnish_last_queue_run', 0 ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
+// Allow forcing cron-mode on/off in tests via a site option.
+add_filter( 'vhp_purge_use_cron', function( $enabled ) {
+    $forced = get_site_option( 'vhp_varnish_force_cron_mode', '' );
+
+    if ( 'on' === $forced ) {
+        return true;
+    }
+
+    if ( 'off' === $forced ) {
+        return false;
+    }
+
+    return $enabled;
 } );
 
 // Keep tag-pattern headers deliberately small in tests to exercise batching logic.

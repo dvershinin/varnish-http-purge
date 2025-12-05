@@ -75,7 +75,16 @@ define( 'VHP_VARNISH_TAGS', false ); // Force treat cache as not tag-capable
 
 Because this feature depends on your cache configuration, it is recommended that you test it carefully in staging before enabling it on production.
 
-= WP CLI =
+= Background Purging with WP-Cron =
+
+On busy sites, sending many PURGE requests directly from admin requests can slow things down. When you define `DISABLE_WP_CRON` as `true` in `wp-config.php` (because you are running a real system cron that calls `wp-cron.php`), Proxy Cache Purge automatically switches to an asynchronous mode:
+
+* Purge requests (both URL-based and tag-based, when Cache Tags are enabled) are collected into a small per-site queue.
+* The queue is processed by WP-Cron in the background, keeping your admin and content-editing actions responsive even when many URLs or tags must be invalidated.
+
+Object-cache purges (the \"Purge Database Cache\" option) remain synchronous and are not affected by this behaviour. The Proxy Cache settings page and Site Health integration expose basic queue status so you can verify that background purging is healthy; if the queue appears large or very old, check that your system cron is correctly invoking WordPress cron.
+
+== WP CLI ==
 
 <strong>Purge</strong>
 
@@ -104,6 +113,18 @@ Available parameters:
 Development mode allows you to disable the cache, temporarily.
 
 * `wp varnish devmode [<activate|deactivate|toggle>]` - Change development mode state
+
+<strong>Async purge queue (cron-mode)</strong>
+
+When you define `DISABLE_WP_CRON` as `true` and run a real system cron for WordPress, Proxy Cache Purge can move heavy purge work into a small background queue that is processed by WP‑Cron.
+
+You can inspect and manage that queue via WP‑CLI:
+
+* `wp varnish queue status` – show whether cron-mode is active, if a full purge is queued, counts of queued URLs/tags, and the last queue run time.
+* `wp varnish queue process` – process any items currently in the queue (useful to run after deploys or cache‑sensitive operations).
+* `wp varnish queue clear` – clear the queue without sending any PURGE requests.
+
+These commands do not replace your normal WordPress cron (you still need a cron entry that calls `wp cron event run --due-now` or hits `wp-cron.php`), but they give you a simple operational handle when using cron‑mode.
 
 == Installation ==
 

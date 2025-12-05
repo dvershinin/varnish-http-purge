@@ -55,6 +55,22 @@ def ensure_up():
         # Allow tests to proceed; individual tests include retries
         pass
 
+    # By default, run the suite with cron-based purging forced off so behaviour
+    # matches the historical synchronous semantics. Individual tests that need
+    # cron-mode can toggle it explicitly via the helper endpoint.
+    try:
+        resp = requests.post(
+            f"{API_BASE}/cron-mode",
+            json={"mode": "force_off"},
+            headers=_host_headers(),
+            timeout=5,
+        )
+        resp.raise_for_status()
+    except Exception:
+        # If the helper endpoint is unavailable for any reason, continue;
+        # tests that rely on it will fail with clearer errors.
+        pass
+
 
 @pytest.fixture()
 def fresh_post():

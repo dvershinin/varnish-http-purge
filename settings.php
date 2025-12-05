@@ -749,6 +749,78 @@ sub vcl_recv {
 
 			<?php
 			if ( ! is_multisite() ) {
+				// Background purge queue status (shown only when cron-mode is active).
+				if ( class_exists( 'VarnishPurger' ) && VarnishPurger::is_cron_purging_enabled_static() ) {
+					$queue = get_site_option( VarnishPurger::PURGE_QUEUE_OPTION, array() );
+
+					$full        = ( isset( $queue['full'] ) && $queue['full'] );
+					$urls        = ( isset( $queue['urls'] ) && is_array( $queue['urls'] ) ) ? $queue['urls'] : array();
+					$tags        = ( isset( $queue['tags'] ) && is_array( $queue['tags'] ) ) ? $queue['tags'] : array();
+					$created_at  = isset( $queue['created_at'] ) ? (int) $queue['created_at'] : 0;
+					$last_run_at = (int) get_site_option( 'vhp_varnish_last_queue_run', 0 );
+
+					$urls_count = count( $urls );
+					$tags_count = count( $tags );
+					?>
+					<div class="notice notice-info" style="margin-top:1em;">
+						<p><strong><?php esc_html_e( 'Background purge queue (WP-Cron)', 'varnish-http-purge' ); ?></strong></p>
+						<p>
+							<?php esc_html_e( 'Because DISABLE_WP_CRON is enabled, purge requests are queued and processed by WP-Cron instead of running during admin/page requests.', 'varnish-http-purge' ); ?>
+						</p>
+						<ul>
+							<li>
+								<?php
+								printf(
+									/* translators: %s is Yes/No. */
+									esc_html__( 'Full-site purge queued: %s', 'varnish-http-purge' ),
+									$full ? esc_html__( 'Yes', 'varnish-http-purge' ) : esc_html__( 'No', 'varnish-http-purge' )
+								);
+								?>
+							</li>
+							<li>
+								<?php
+								printf(
+									/* translators: %d is a count of URLs. */
+									esc_html__( 'Queued URLs: %d', 'varnish-http-purge' ),
+									(int) $urls_count
+								);
+								?>
+							</li>
+							<li>
+								<?php
+								printf(
+									/* translators: %d is a count of tags. */
+									esc_html__( 'Queued cache tags: %d', 'varnish-http-purge' ),
+									(int) $tags_count
+								);
+								?>
+							</li>
+							<?php if ( $created_at > 0 ) : ?>
+								<li>
+									<?php
+									printf(
+										/* translators: %s is a human-readable time difference. */
+										esc_html__( 'Queue age: %s', 'varnish-http-purge' ),
+										esc_html( human_time_diff( $created_at, time() ) )
+									);
+									?>
+								</li>
+							<?php endif; ?>
+							<?php if ( $last_run_at > 0 ) : ?>
+								<li>
+									<?php
+									printf(
+										/* translators: %s is a human-readable time difference. */
+										esc_html__( 'Last queue run: %s ago', 'varnish-http-purge' ),
+										esc_html( human_time_diff( $last_run_at, time() ) )
+									);
+									?>
+								</li>
+							<?php endif; ?>
+						</ul>
+					</div>
+					<?php
+				}
 				?>
 				<form action="options.php" method="POST" >
 				<?php

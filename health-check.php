@@ -74,7 +74,15 @@ function vhp_site_status_caching_test() {
 	} elseif ( ! empty( $debug_results ) && '' !== $debug_results ) {
 		$count = count( $debug_results );
 		// Translators: %d is the number of issues reported
-		$desc = sprintf( _n( 'The most recent cache status check reported %d issue.', 'The most recent cache status check reported %d issues.', $count, 'varnish-http-purge' ), $count );
+		$desc = sprintf(
+			_n(
+				'The most recent cache status check reported %d issue.',
+				'The most recent cache status check reported %d issues.',
+				$count,
+				'varnish-http-purge'
+			),
+			$count
+		);
 
 		$result['status'] = 'critical';
 		// Translators: %d is the number of issues reported
@@ -88,6 +96,68 @@ function vhp_site_status_caching_test() {
 			$result['description'] .= '<li><strong>' . $key . '</strong>: ' . $value . '</li>';
 		}
 		$result['description'] .= '</ul>';
+	} else {
+		// Inspect the async purge queue when cron-mode is enabled and the
+		// basic cache checks look healthy.
+		if ( class_exists( 'VarnishPurger' ) && VarnishPurger::is_cron_purging_enabled_static() ) {
+			$queue = get_site_option( VarnishPurger::PURGE_QUEUE_OPTION, array() );
+
+			$full       = ( isset( $queue['full'] ) && $queue['full'] );
+			$urls       = ( isset( $queue['urls'] ) && is_array( $queue['urls'] ) ) ? $queue['urls'] : array();
+			$tags       = ( isset( $queue['tags'] ) && is_array( $queue['tags'] ) ) ? $queue['tags'] : array();
+			$created_at = isset( $queue['created_at'] ) ? (int) $queue['created_at'] : 0;
+
+			$urls_count = count( $urls );
+			$tags_count = count( $tags );
+
+			$has_backlog = ( $full || $urls_count || $tags_count );
+			$queue_age   = 0;
+
+			if ( $has_backlog && $created_at > 0 ) {
+				$queue_age = time() - $created_at;
+			}
+
+			$max_age    = (int) apply_filters( 'vhp_purge_queue_health_max_age', 15 * MINUTE_IN_SECONDS );
+			$max_items  = (int) apply_filters( 'vhp_purge_queue_health_max_items', 500 );
+			$item_count = $urls_count + $tags_count;
+
+			$age_exceeded   = ( $max_age > 0 && $queue_age > $max_age );
+			$size_exceeded  = ( $max_items > 0 && $item_count > $max_items );
+			$raise_warning  = ( $has_backlog && ( $age_exceeded || $size_exceeded ) );
+
+			if ( $raise_warning ) {
+				$result['status'] = 'recommended';
+				$result['label']  = __( 'Proxy Cache Purge queue may be stuck', 'varnish-http-purge' );
+
+				$details = sprintf(
+					// translators: 1: URL count, 2: tag count.
+					__( 'The async purge queue currently holds %1$d URLs and %2$d cache tags.', 'varnish-http-purge' ),
+					(int) $urls_count,
+					(int) $tags_count
+				);
+
+				if ( $queue_age > 0 ) {
+					$details .= ' ';
+					$details .= sprintf(
+						// translators: %s is a human-readable time difference.
+						__( 'The oldest entry has been queued for %s.', 'varnish-http-purge' ),
+						human_time_diff( $created_at, time() )
+					);
+				}
+
+				$result['description'] = sprintf(
+					'<p>%s</p><p>%s</p>',
+					esc_html__( 'Proxy Cache Purge is configured to run purges in the background via WP-Cron. A large or very old queue can indicate that WP-Cron or your system cron is not running as expected.', 'varnish-http-purge' ),
+					esc_html( $details )
+				);
+
+				$result['actions'] = sprintf(
+					'<p><a href="%s">%s</a></p>',
+					esc_url( admin_url( 'admin.php?page=varnish-page' ) ),
+					esc_html__( 'Review Proxy Cache Purge settings', 'varnish-http-purge' )
+				);
+			}
+		}
 	}
 
 	return $result;
