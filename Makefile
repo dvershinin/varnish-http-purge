@@ -1,6 +1,55 @@
 SHELL := /bin/bash
 
-.PHONY: up down build setup test tests logs clean pytest teststack
+.PHONY: up down build setup test tests logs clean pytest teststack lint phpcs phpcbf phpstan
+
+# ============================================================================
+# Linting and Static Analysis
+# ============================================================================
+
+lint: phpcs phpstan
+	@echo "All linting checks passed!"
+
+phpcs:
+	@echo "Running PHP CodeSniffer..."
+	@if [ -x "$$HOME/.composer/vendor/bin/phpcs" ]; then \
+		$$HOME/.composer/vendor/bin/phpcs; \
+	elif command -v phpcs &> /dev/null; then \
+		phpcs; \
+	else \
+		echo "phpcs not installed. Install with:"; \
+		echo "  composer global require wp-coding-standards/wpcs dealerdirect/phpcodesniffer-composer-installer"; \
+	fi
+
+phpcbf:
+	@echo "Auto-fixing PHP CodeSniffer issues..."
+	@if [ -x "$$HOME/.composer/vendor/bin/phpcbf" ]; then \
+		$$HOME/.composer/vendor/bin/phpcbf || true; \
+	elif command -v phpcbf &> /dev/null; then \
+		phpcbf || true; \
+	else \
+		echo "phpcbf not installed. Install with:"; \
+		echo "  composer global require wp-coding-standards/wpcs dealerdirect/phpcodesniffer-composer-installer"; \
+	fi
+
+phpstan:
+	@echo "Running PHPStan..."
+	@if command -v phpstan &> /dev/null; then \
+		phpstan analyse --no-progress --memory-limit=512M; \
+	else \
+		echo "phpstan not installed. Install with: composer global require phpstan/phpstan"; \
+	fi
+
+check-txt:
+	@echo "Checking for escaped quotes in text files..."
+	@if grep -r '\\\"' *.txt 2>/dev/null; then \
+		echo "ERROR: Found escaped quotes in text files!"; exit 1; \
+	else \
+		echo "No escaped quotes found in text files."; \
+	fi
+
+# ============================================================================
+# Docker / Testing
+# ============================================================================
 
 build:
 	cd tests && docker compose build --pull --no-cache

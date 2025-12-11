@@ -1,0 +1,56 @@
+# Pre-commit hooks for Proxy Cache Purge
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # PHP syntax check
+  - repo: https://github.com/digitalpulp/pre-commit-php
+    rev: 1.4.0
+    hooks:
+      - id: php-lint
+        files: \.php$
+
+  # Check for common issues in text files
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.min\.(js|css)$
+      - id: end-of-file-fixer
+        exclude: \.min\.(js|css)$
+      - id: check-yaml
+      - id: check-json
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Check for escaped quotes in txt/md files (custom)
+  - repo: local
+    hooks:
+      - id: no-escaped-quotes-in-text
+        name: Check for escaped quotes in text files
+        entry: bash -c 'if grep -l "\\\\\\"" "$@" 2>/dev/null; then echo "ERROR: Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."; exit 1; fi; exit 0'
+        language: system
+        files: \.(txt|md)$
+        types: [text]
+
+  # PHPCS (WordPress coding standards)
+  - repo: local
+    hooks:
+      - id: phpcs
+        name: PHP CodeSniffer
+        entry: bash -c 'if command -v phpcs &> /dev/null; then phpcs --standard=phpcs.xml.dist "$@"; else echo "phpcs not installed, skipping"; fi'
+        language: system
+        files: \.php$
+        exclude: ^tests/
+
+  # PHPStan (static analysis - catches undefined variables!)
+  - repo: local
+    hooks:
+      - id: phpstan
+        name: PHPStan
+        entry: bash -c 'if command -v phpstan &> /dev/null; then phpstan analyse --no-progress "$@"; else echo "phpstan not installed, skipping"; fi'
+        language: system
+        files: \.php$
+        exclude: ^tests/
+        pass_filenames: false
+

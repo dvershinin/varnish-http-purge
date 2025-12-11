@@ -534,4 +534,43 @@ add_filter( 'vhp_purge_tags_max_header_size', function( $max ) {
     return $limit;
 } );
 
+// Test endpoint to exercise the admin bar rendering (varnish_rightnow_adminbar).
+// This ensures the code path with get_current_blog_id() and permission checks runs without error.
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/adminbar-render', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            // Set up as admin user to exercise permission checks.
+            $admin = get_user_by( 'login', 'admin' );
+            if ( $admin ) {
+                wp_set_current_user( $admin->ID );
+            }
+
+            // Create a mock admin bar object to capture nodes.
+            $nodes = array();
+            $mock_admin_bar = new class( $nodes ) {
+                private $nodes;
+                public function __construct( &$nodes ) {
+                    $this->nodes = &$nodes;
+                }
+                public function add_node( $args ) {
+                    $this->nodes[] = $args;
+                }
+            };
+
+            // Call the admin bar method.
+            $purger = new VarnishPurger();
+            $purger->varnish_rightnow_adminbar( $mock_admin_bar );
+
+            return array(
+                'ok'         => true,
+                'nodes'      => $nodes,
+                'node_count' => count( $nodes ),
+                'multisite'  => is_multisite(),
+                'blog_id'    => get_current_blog_id(),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
 

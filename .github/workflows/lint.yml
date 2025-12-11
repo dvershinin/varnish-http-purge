@@ -1,0 +1,72 @@
+name: Lint
+
+on:
+  push:
+    branches: [ trunk, main ]
+  pull_request:
+    branches: [ trunk, main ]
+
+jobs:
+  phpcs:
+    name: PHP CodeSniffer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: phpcs
+          extensions: mbstring
+
+      - name: Install WordPress Coding Standards
+        run: |
+          composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer global require --dev wp-coding-standards/wpcs:"^3.0" dealerdirect/phpcodesniffer-composer-installer
+
+      - name: Run PHPCS
+        run: phpcs
+
+  phpstan:
+    name: PHPStan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: phpstan
+          extensions: mbstring
+
+      - name: Install WordPress stubs
+        run: composer global require php-stubs/wordpress-stubs
+
+      - name: Run PHPStan
+        run: phpstan analyse --no-progress --error-format=github
+
+  text-files:
+    name: Text File Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for escaped quotes in text files
+        run: |
+          if grep -r '\\\"' *.txt *.md 2>/dev/null; then
+            echo "::error::Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."
+            exit 1
+          fi
+          echo "No escaped quotes found in text files."
+
+      - name: Check for trailing whitespace
+        run: |
+          if grep -r '[[:blank:]]$' *.php *.txt 2>/dev/null | head -20; then
+            echo "::warning::Found trailing whitespace in some files."
+          fi
+

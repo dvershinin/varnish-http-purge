@@ -1,0 +1,31 @@
+---
+alwaysApply: true
+---
+
+## WordPress test stack & wp-admin access
+
+- **When starting or reusing the Docker test stack**
+  - Run either `make tests` from the plugin root, or from `tests/` run:
+    - `docker compose up -d`
+    - `bash setup.sh`
+  - After the stack is up, always detect the current home URL from inside the container:
+    - `cd tests && docker compose run --rm wpcli --path=/var/www/html option get home`
+  - Parse the port from that URL and surface to the user:
+    - Site URL: `http://localhost:PORT/`
+    - Admin URL: `http://localhost:PORT/wp-admin/`
+    - Credentials: `admin` / `admin` (from `tests/setup.sh`).
+
+- **When the user asks to open or inspect wp-admin / settings UI**
+  - Check stack status first with `cd tests && docker compose ps`.
+  - If WordPress is not running or not healthy:
+    - From the plugin root: `make up && make setup`, or
+    - From `tests/`: `docker compose up -d` then `bash setup.sh`.
+  - Then repeat the home-URL detection step above and reply with the exact current admin URL and credentials.
+
+- **After every `make tests` run**
+  - Assume the stack may have been recreated on a new random port (because `TEST_PORT` is regenerated).
+  - Recompute the home/admin URLs as above and explicitly tell the user:
+    - `WordPress is now at http://localhost:PORT/wp-admin/ (admin/admin)`.
+  - Do not assume old ports (like 8080 or an earlier TEST_PORT) are still valid once tests have been rerun.
+
+

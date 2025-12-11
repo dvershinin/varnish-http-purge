@@ -82,7 +82,7 @@ On busy sites, sending many PURGE requests directly from admin requests can slow
 * Purge requests (both URL-based and tag-based, when Cache Tags are enabled) are collected into a small per-site queue.
 * The queue is processed by WP-Cron in the background, keeping your admin and content-editing actions responsive even when many URLs or tags must be invalidated.
 
-Object-cache purges (the \"Purge Database Cache\" option) remain synchronous and are not affected by this behaviour. The Proxy Cache settings page and Site Health integration expose basic queue status so you can verify that background purging is healthy; if the queue appears large or very old, check that your system cron is correctly invoking WordPress cron.
+Object-cache purges (the "Purge Database Cache" option) remain synchronous and are not affected by this behaviour. The Proxy Cache settings page and Site Health integration expose basic queue status so you can verify that background purging is healthy; if the queue appears large or very old, check that your system cron is correctly invoking WordPress cron.
 
 <strong>Important: Cron Frequency and Cache Freshness</strong>
 

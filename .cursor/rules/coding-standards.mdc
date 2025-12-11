@@ -1,0 +1,55 @@
+---
+description: PHP and WordPress coding standards for Proxy Cache Purge plugin
+globs: ["*.php", "*.txt", "*.md"]
+alwaysApply: true
+---
+
+# Coding Standards for Proxy Cache Purge
+
+## PHP Code Quality
+
+1. **Always define variables before use**
+   - Every variable must be initialized before being used in conditionals
+   - When copying logic between functions, ensure ALL required variables are included
+   - Pay special attention to variables like `$source`, `$supported`, `$disabled`
+
+2. **WordPress Functions**
+   - Use `esc_html_e()` for translatable escaped output
+   - Use `esc_attr()` for attribute values
+   - Use `wp_kses_post()` for HTML content
+
+3. **Before committing PHP changes**
+   - Run `make phpstan` to catch undefined variables
+   - Run `make phpcs` to check WordPress coding standards
+   - Run `make lint` to run all checks
+
+## Text Files (readme.txt, changelog.txt)
+
+1. **Never use escaped quotes in .txt or .md files**
+   - ❌ Wrong: `\"Use Cache Tags\"`
+   - ✅ Correct: `"Use Cache Tags"`
+
+2. **When outputting quotes in PHP `esc_html_e()`**
+   - ❌ Wrong: `esc_html_e( 'Example: vhp=\"value\"' )`
+   - ✅ Correct: `esc_html_e( 'Example: vhp="value"' )`
+   - The function handles escaping for HTML output
+
+## Pre-commit Checks
+
+Before committing, run:
+```bash
+make lint        # Run all linting checks
+make check-txt   # Check text files for issues
+make tests       # Run full test suite
+```
+
+## Common Mistakes to Avoid
+
+1. **Copy-paste between functions**: When copying code between methods, verify all variables used are defined in the new context
+
+2. **String escaping confusion**: 
+   - In `.txt` files: Use literal quotes `"`
+   - In PHP single-quoted strings: Use literal quotes `"`  
+   - In PHP double-quoted strings: Escape with `\"` only when needed
+
+3. **Missing variable initialization**: Always initialize variables at function start, especially in callback functions that mirror other functions' logic

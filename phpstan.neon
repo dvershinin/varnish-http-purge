@@ -1,0 +1,43 @@
+parameters:
+    # Level 3 catches undefined variables without being too strict about types
+    level: 3
+    paths:
+        - .
+    excludePaths:
+        - tests/
+        - vendor (?)
+        - phpstan-bootstrap.php
+        # WP-CLI file requires WP-CLI stubs which we don't have
+        - wp-cli.php
+    scanDirectories:
+        - .
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    # Don't trust PHPDoc types (WordPress code has many incorrect/missing ones)
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # WordPress globals and functions (until stubs are installed)
+        - '#Function [a-zA-Z0-9\\\_]+ not found#'
+        - '#Call to an undefined method WP_#'
+        - '#Class (WP_[a-zA-Z_]+|WP_CLI[a-zA-Z_]*) not found#'
+        - '#Constant [A-Z_]+ not found#'
+        - '#Access to an undefined property#'
+        - '#Access to property .+ on an unknown class#'
+        - '#Method .+ has invalid return type [a-z]+#'
+        - '#Parameter .+ has invalid type WP_#'
+        # Ignore type mismatches for now - focus on undefined vars
+        - '#should return .+ but returns#'
+        - '#Default value of the parameter#'
+        # PHPDoc parsing errors in existing code
+        - '#PHPDoc tag @#'
+        # Offset access on arrays that PHPStan doesn't understand
+        - '#Offset .+ does not exist on#'
+        - '#Offset .+ on .+ in isset\(\) does not exist#'
+        # empty() and isset() false positives
+        - '#in empty\(\) always exists#'
+        - '#in isset\(\) always exists#'
+        # Binary operation issues with WordPress types
+        - '#Binary operation .+ results in an error#'
+        # Static method count issues
+        - '#invoked with .+ parameters#'
+    reportUnmatchedIgnoredErrors: false
