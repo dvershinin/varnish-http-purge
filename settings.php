@@ -112,7 +112,7 @@ class VarnishStatus {
 			if ( $active && isset( $devmode['expire'] ) && ! VHP_DEVMODE ) {
 				$timestamp = date_i18n( get_site_option( 'date_format' ), $devmode['expire'] ) . ' @ ' . date_i18n( get_site_option( 'time_format' ), $devmode['expire'] );
 				// translators: %s is the time (in hours) until Development Mode expires.
-				echo sprintf( esc_html__( 'Development Mode is active until %s. It will automatically disable after that time.', 'varnish-http-purge' ), esc_html( $timestamp ) );
+				printf( esc_html__( 'Development Mode is active until %s. It will automatically disable after that time.', 'varnish-http-purge' ), esc_html( $timestamp ) );
 			} elseif ( VHP_DEVMODE ) {
 				esc_attr_e( 'Development Mode has been activated via wp-config and cannot be deactivated here.', 'varnish-http-purge' );
 			} else {
@@ -204,21 +204,21 @@ class VarnishStatus {
 			<div id="vhp-accordion-panel-vcl" class="vhp-accordion-panel" hidden>
 			<pre style="background:#f0f0f0;padding:10px;overflow:auto;">
 sub vcl_recv {
-    if (req.method == "PURGE") {
-        # ... acl check ...
-        # Optional: validate a control header sent by the plugin (for example
-        # via the VHP_VARNISH_EXTRA_PURGE_HEADER constant or the "Purge Headers" settings).
-        # Adjust the header name and value to match your environment.
-        #
-        # if (req.http.X-Control-Key != "YOUR_CONTROL_KEY_HERE") {
-        #     return (synth(403, "Forbidden"));
-        # }
+	if (req.method == "PURGE") {
+		# ... acl check ...
+		# Optional: validate a control header sent by the plugin (for example
+		# via the VHP_VARNISH_EXTRA_PURGE_HEADER constant or the "Purge Headers" settings).
+		# Adjust the header name and value to match your environment.
+		#
+		# if (req.http.X-Control-Key != "YOUR_CONTROL_KEY_HERE") {
+		#     return (synth(403, "Forbidden"));
+		# }
 
-        if (req.http.X-Purge-Method == "tags" && req.http.X-Cache-Tags-Pattern) {
-            ban("obj.http.X-Cache-Tags ~ " + req.http.X-Cache-Tags-Pattern);
-            return (synth(200, "Banned by tags pattern"));
-        }
-    }
+		if (req.http.X-Purge-Method == "tags" && req.http.X-Cache-Tags-Pattern) {
+			ban("obj.http.X-Cache-Tags ~ " + req.http.X-Cache-Tags-Pattern);
+			return (synth(200, "Banned by tags pattern"));
+		}
+	}
 }
 			</pre>
 			</div>
@@ -234,11 +234,15 @@ sub vcl_recv {
 	public function settings_tags_callback() {
 		$use_tags  = get_site_option( 'vhp_varnish_use_tags' );
 		$supported = false;
+		$source    = 'auto';
+
 		// If VHP_VARNISH_TAGS is defined, treat it as an explicit override for detection.
 		if ( defined( 'VHP_VARNISH_TAGS' ) ) {
 			$supported = (bool) VHP_VARNISH_TAGS;
+			$source    = $supported ? 'forced_on' : 'forced_off';
 		} elseif ( class_exists( 'VarnishDebug' ) && method_exists( 'VarnishDebug', 'cache_tags_advertised' ) ) {
 			$supported = VarnishDebug::cache_tags_advertised();
+			$source    = $supported ? 'advertised' : 'none';
 		}
 
 		$disabled = ! $supported;
@@ -261,7 +265,7 @@ sub vcl_recv {
 			if ( 'forced_off' === $source ) {
 				esc_html_e( 'Cache Tags / Surrogate Keys support has been explicitly disabled via the VHP_VARNISH_TAGS define in wp-config.php.', 'varnish-http-purge' );
 			} else {
-				esc_html_e( 'Your cache server did not report support for Cache Tags / Surrogate Keys. To enable this setting, configure your cache to send a Surrogate-Capability header that advertises tag support (for example, Surrogate-Capability: vhp=\"Surrogate/1.0 tags/1\") or define VHP_VARNISH_TAGS in wp-config.php.', 'varnish-http-purge' );
+				esc_html_e( 'Your cache server did not report support for Cache Tags / Surrogate Keys. To enable this setting, configure your cache to send a Surrogate-Capability header that advertises tag support (for example, Surrogate-Capability: vhp="Surrogate/1.0 tags/1") or define VHP_VARNISH_TAGS in wp-config.php.', 'varnish-http-purge' );
 			}
 			echo '</p>';
 		}
@@ -284,7 +288,7 @@ sub vcl_recv {
 			return 0;
 		}
 
-		return ( isset( $input ) && 1 == $input ) ? 1 : 0;
+		return ( isset( $input ) && 1 === (int) $input ) ? 1 : 0;
 	}
 
 	/**

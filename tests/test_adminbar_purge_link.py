@@ -1,3 +1,8 @@
+"""
+Tests for admin bar functionality including:
+- Purge link URL building
+- Admin bar rendering (exercises get_current_blog_id() and permission checks)
+"""
 import os
 import time
 from urllib.parse import urlparse, urlunparse
@@ -105,4 +110,32 @@ def test_adminbar_purge_link_no_trailing_slash(mode, expect_miss):
     else:
         assert hit_miss != "MISS"
 
+
+def test_adminbar_render_no_errors():
+    """
+    Test that varnish_rightnow_adminbar() renders without errors.
+
+    This exercises the code path that uses get_current_blog_id() for
+    multisite permission checks. Even on single-site, this ensures:
+    - No undefined variable errors
+    - Permission logic runs without exceptions
+    - Admin bar nodes are generated correctly
+    """
+    r = requests.get(f"{API_BASE}/adminbar-render", headers=_host_headers())
+    r.raise_for_status()
+    data = r.json()
+
+    assert data["ok"] is True
+    # Should have at least the main cache menu node
+    assert data["node_count"] >= 1
+    # blog_id should be returned (1 on single-site)
+    assert "blog_id" in data
+    assert isinstance(data["blog_id"], int)
+    # Check that nodes were captured
+    assert isinstance(data["nodes"], list)
+    # The first node should be the main cache menu
+    if data["nodes"]:
+        first_node = data["nodes"][0]
+        assert "id" in first_node
+        assert first_node["id"] == "purge-varnish-cache"
 

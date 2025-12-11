@@ -278,11 +278,11 @@ class VarnishPurger {
 	 * This runs for ALL upgrades (theme, plugin, and core) to account for
 	 * the complex nature that are upgrades.
 	 *
-	 * @param  array $object of upgrade data
-	 * @param  array $options picked for upgrade
+	 * @param  array $upgrader_object WP_Upgrader instance (unused).
+	 * @param  array $hook_extra Extra hook arguments (unused).
 	 * @since 4.8
 	 */
-	public function check_upgrades( $object, $options ) {
+	public function check_upgrades( $upgrader_object, $hook_extra ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter
 		if ( file_exists( WP_CONTENT_DIR . '/object-cache.php' ) ) {
 			wp_cache_flush();
 		}
@@ -563,9 +563,9 @@ class VarnishPurger {
 
 		if ( $max_urls > 0 && count( $queue['urls'] ) > $max_urls ) {
 			// Rather than silently dropping URLs, upgrade to a full purge.
-			$queue['full']  = true;
-			$queue['urls']  = array();
-			$queue['tags']  = array();
+			$queue['full'] = true;
+			$queue['urls'] = array();
+			$queue['tags'] = array();
 		}
 
 		$queue['last_updated_at'] = time();
@@ -624,9 +624,9 @@ class VarnishPurger {
 
 		if ( $max_tags > 0 && count( $queue['tags'] ) > $max_tags ) {
 			// Too many granular tags – upgrade to a full purge for safety.
-			$queue['full']  = true;
-			$queue['urls']  = array();
-			$queue['tags']  = array();
+			$queue['full'] = true;
+			$queue['urls'] = array();
+			$queue['tags'] = array();
 		}
 
 		$queue['last_updated_at'] = time();
@@ -727,6 +727,7 @@ class VarnishPurger {
 		global $wp;
 
 		$can_purge    = false;
+		$args         = array();
 		$cache_active = ( VarnishDebug::devmode_check() ) ? __( 'Inactive', 'varnish-http-purge' ) : __( 'Active', 'varnish-http-purge' );
 		// translators: %s is the state of cache.
 		$cache_titled = sprintf( __( 'Cache (%s)', 'varnish-http-purge' ), $cache_active );
@@ -752,7 +753,7 @@ class VarnishPurger {
 			// Multisite - Network Admin can always purge.
 			current_user_can( 'manage_network' ) ||
 			// Multisite - Site admins can purge UNLESS it's a subfolder install and we're on site #1.
-			( is_multisite() && current_user_can( 'activate_plugins' ) && ( SUBDOMAIN_INSTALL || ( ! SUBDOMAIN_INSTALL && ( BLOG_ID_CURRENT_SITE !== $blog_id ) ) ) )
+			( is_multisite() && current_user_can( 'activate_plugins' ) && ( SUBDOMAIN_INSTALL || ( ! SUBDOMAIN_INSTALL && ( BLOG_ID_CURRENT_SITE !== get_current_blog_id() ) ) ) )
 			) {
 
 			$args[] = array(
@@ -1025,15 +1026,13 @@ class VarnishPurger {
 				} else {
 					$this->enqueue_urls( $purge_urls );
 				}
-			} else {
-				if ( $max_posts <= $count ) {
+			} elseif ( $max_posts <= $count ) {
 					// Too many URLs, purge all instead.
 					$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
-				} else {
-					// Purge each URL.
-					foreach ( $purge_urls as $url ) {
-						$this->purge_url( $url );
-					}
+			} else {
+				// Purge each URL.
+				foreach ( $purge_urls as $url ) {
+					$this->purge_url( $url );
 				}
 			}
 		} elseif ( isset( $_GET ) ) {
@@ -1249,7 +1248,8 @@ class VarnishPurger {
 		// Now apply filters
 		if ( is_array( $varniship ) ) {
 			// To each ship:
-			for ( $i = 0; $i < count( $varniship ); $i++ ) {
+			$ship_count = count( $varniship );
+			for ( $i = 0; $i < $ship_count; $i++ ) {
 				$varniship[ $i ] = apply_filters( 'vhp_varnish_ip', $varniship[ $i ] );
 			}
 		} else {
@@ -1428,9 +1428,9 @@ class VarnishPurger {
 		}
 
 		// Build batched patterns like "tag-one|tag-two|tag-three" to be used in a single BAN.
-		$patterns          = array();
-		$current_tags      = array();
-		$current_size      = 0;
+		$patterns     = array();
+		$current_tags = array();
+		$current_size = 0;
 		foreach ( $tags as $tag ) {
 			$tag        = trim( (string) $tag );
 			$tag_length = strlen( $tag );
@@ -1443,10 +1443,10 @@ class VarnishPurger {
 
 			// If adding this tag would exceed the header size, flush the current batch first.
 			if ( $current_size > 0 && ( $current_size + $additional ) > $max_header_size ) {
-				$patterns[]    = implode( '|', $current_tags );
-				$current_tags  = array();
-				$current_size  = 0;
-				$additional    = $tag_length; // first tag in the new batch, no delimiter yet.
+				$patterns[]   = implode( '|', $current_tags );
+				$current_tags = array();
+				$current_size = 0;
+				$additional   = $tag_length; // first tag in the new batch, no delimiter yet.
 			}
 
 			$current_tags[] = $tag;
@@ -1473,7 +1473,8 @@ class VarnishPurger {
 		// Now apply filters
 		if ( is_array( $varniship ) ) {
 			// To each ship:
-			for ( $i = 0; $i < count( $varniship ); $i++ ) {
+			$ship_count = count( $varniship );
+			for ( $i = 0; $i < $ship_count; $i++ ) {
 				$varniship[ $i ] = apply_filters( 'vhp_varnish_ip', $varniship[ $i ] );
 			}
 		} else {
@@ -1516,9 +1517,7 @@ class VarnishPurger {
 			}
 
 			// Filter URL based on the Proxy IP for nginx compatibility.
-			if ( 'localhost' === $one_host ) {
-				// No URL rewrite needed for tag-based purges.
-			}
+			// Note: For localhost (nginx), no URL rewrite is needed for tag-based purges.
 
 			// Create path to purge.
 			$purgeme = $schema . $one_host . '/';
@@ -1533,9 +1532,9 @@ class VarnishPurger {
 				$headers = apply_filters(
 					'varnish_http_purge_headers',
 					array(
-						'host'                    => $host_headers,
-						'X-Purge-Method'          => 'tags',
-						'X-Cache-Tags-Pattern'    => $pattern,
+						'host'                 => $host_headers,
+						'X-Purge-Method'       => 'tags',
+						'X-Cache-Tags-Pattern' => $pattern,
 					)
 				);
 
@@ -1659,11 +1658,11 @@ class VarnishPurger {
 	 * Flush the whole cache
 	 *
 	 * @access public
-	 * @param mixed $post_id - the post ID that triggered this (we don't use it yet).
+	 * @param mixed $post_id The post ID that triggered this (unused, kept for hook compatibility).
 	 * @return void
 	 * @since 3.9
 	 */
-	public function execute_purge_no_id( $post_id ) {
+	public function execute_purge_no_id( $post_id ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter
 		$listofurls = array();
 
 		array_push( $listofurls, $this->the_home_url() . '/?vhp-regex' );
@@ -1822,7 +1821,7 @@ class VarnishPurger {
 				}
 
 				if ( isset( $rest_permalink ) ) {
-					if ( is_string( $rest_permalink ) && $rest_permalink !== '' ) {
+					if ( is_string( $rest_permalink ) && '' !== $rest_permalink ) {
 						array_push( $listofurls, $rest_permalink );
 					}
 				}
@@ -1944,7 +1943,12 @@ class VarnishPurger {
 			return;
 		} else {
 			// Strip off query variables
-			$listofurls = array_map( function( $url ) { return strtok( $url, '?' ); }, $listofurls );
+			$listofurls = array_map(
+				function ( $url ) {
+					return strtok( $url, '?' );
+				},
+				$listofurls
+			);
 
 			// If the DOMAINS setup is defined, we duplicate the URLs
 			if ( false !== VHP_DOMAINS ) {
@@ -2010,7 +2014,6 @@ class VarnishPurger {
 		self::purge_post( $post_id );
 	}
 	// @codingStandardsIgnoreEnd
-
 }
 
 /**

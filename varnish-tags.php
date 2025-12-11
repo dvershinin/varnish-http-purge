@@ -167,7 +167,7 @@ class VarnishTags {
 		$tags[] = 'archive';
 		$tags[] = 'feed';
 		$tags[] = 'blog';
-		
+
 		// If it's a page on front, purge home.
 		// Actually, any post update might change home (recent posts).
 		$tags[] = 'home';
@@ -178,4 +178,3 @@ class VarnishTags {
 		return array_unique( $tags );
 	}
 }
-

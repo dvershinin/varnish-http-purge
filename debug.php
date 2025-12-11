@@ -211,7 +211,7 @@ class VarnishDebug {
 		} else {
 			foreach ( $_SERVER as $key => $value ) {
 				if ( 0 === strpos( $key, 'HTTP_' ) ) {
-					$name              = str_replace( ' ', '-', ucwords( strtolower( str_replace( '_', ' ', substr( $key, 5 ) ) ) ) );
+					$name             = str_replace( ' ', '-', ucwords( strtolower( str_replace( '_', ' ', substr( $key, 5 ) ) ) ) );
 					$headers[ $name ] = $value;
 				}
 			}
@@ -367,15 +367,15 @@ class VarnishDebug {
 			// Get some basic truthy/falsy from the headers.
 			// Headers used by both.
 			$x_varnish_header_name = apply_filters( 'varnish_http_purge_x_varnish_header_name', 'X-Varnish' );
-			$x_varnish = ( isset( $headers[$x_varnish_header_name] ) ) ? true : false;
-			$x_date    = ( isset( $headers['Date'] ) && strtotime( $headers['Date'] ) !== false ) ? true : false;
-			$x_age     = ( isset( $headers['Age'] ) ) ? true : false;
+			$x_varnish             = ( isset( $headers[ $x_varnish_header_name ] ) ) ? true : false;
+			$x_date                = ( isset( $headers['Date'] ) && strtotime( $headers['Date'] ) !== false ) ? true : false;
+			$x_age                 = ( isset( $headers['Age'] ) ) ? true : false;
 
 			// Is this Nginx or not?
 			$x_nginx = ( isset( $headers['server'] ) && ( strpos( $headers['server'], 'nginx' ) !== false || strpos( $headers['server'], 'openresty' ) !== false ) ) ? true : false;
 
 			// Headers used by Nginx.
-			$x_varn_hit  = ( $x_varnish && strpos( $headers[$x_varnish_header_name], 'HIT' ) !== false ) ? true : false;
+			$x_varn_hit  = ( $x_varnish && strpos( $headers[ $x_varnish_header_name ], 'HIT' ) !== false ) ? true : false;
 			$x_age_nginx = ( $x_varn_hit || ( $x_age && $x_date && ( strtotime( $headers['Age'] ) < strtotime( $headers['Date'] ) ) ) ) ? true : false;
 			$x_pragma    = ( ! isset( $headers['Pragma'] ) || ( isset( $headers['Pragma'] ) && strpos( $headers['Pragma'], 'no-cache' ) === false ) ) ? true : false;
 

@@ -10,7 +10,7 @@
 
 = 5.4.0 =
 * December 2025
-* New (BETA): Optional Cache Tags / Surrogate Key purge mode, controlled via the \"Use Cache Tags\" setting.
+* New (BETA): Optional Cache Tags / Surrogate Key purge mode, controlled via the "Use Cache Tags" setting.
 * New (BETA): Tag-mode enablement based on standard Surrogate-Capability headers from surrogates (Edge Architecture spec) or the VHP_VARNISH_TAGS wp-config define.
 * New: Admin UI improvements – properly associated labels for checkboxes and clearer explanatory copy.
 * Dev: Test VCL and pytest stack updated to cover tag-based purging behaviour.
