@@ -66,7 +66,7 @@ jobs:
       - name: Install PHPCompatibility
         run: |
           composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
-          composer global require --dev phpcompatibility/php-compatibility
+          composer global require --dev phpcompatibility/php-compatibility dealerdirect/phpcodesniffer-composer-installer
 
       - name: Extract declared PHP version from readme.txt
         id: php_version
