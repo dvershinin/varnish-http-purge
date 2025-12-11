@@ -49,6 +49,94 @@ jobs:
       - name: Run PHPStan
         run: phpstan analyse --no-progress --error-format=github
 
+  php-compatibility:
+    name: PHP Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: phpcs
+          extensions: mbstring
+
+      - name: Install PHPCompatibility
+        run: |
+          composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer global require --dev phpcompatibility/php-compatibility dealerdirect/phpcodesniffer-composer-installer
+
+      - name: Extract declared PHP version from readme.txt
+        id: php_version
+        run: |
+          declared=$(grep -i "^Requires PHP:" readme.txt | sed 's/.*: *//')
+          echo "Declared minimum PHP: $declared"
+          echo "version=$declared" >> $GITHUB_OUTPUT
+
+      - name: Check PHP compatibility matches declared version
+        run: |
+          phpcs --standard=PHPCompatibility \
+            --runtime-set testVersion ${{ steps.php_version.outputs.version }} \
+            --extensions=php \
+            --ignore=tests/,vendor/ \
+            .
+
+  plugin-headers:
+    name: Plugin Header Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate readme.txt and plugin headers match
+        run: |
+          # Extract versions from readme.txt
+          readme_stable=$(grep -i "^Stable tag:" readme.txt | sed 's/.*: *//')
+          readme_wp=$(grep -i "^Requires at least:" readme.txt | sed 's/.*: *//')
+          readme_php=$(grep -i "^Requires PHP:" readme.txt | sed 's/.*: *//')
+          
+          # Extract versions from main plugin file
+          plugin_version=$(grep -i "^ \* Version:" varnish-http-purge.php | sed 's/.*: *//')
+          plugin_wp=$(grep -i "^ \* Requires at least:" varnish-http-purge.php | sed 's/.*: *//')
+          plugin_php=$(grep -i "^ \* Requires PHP:" varnish-http-purge.php | sed 's/.*: *//')
+          
+          echo "📦 Version Check:"
+          echo "  readme.txt Stable tag: $readme_stable"
+          echo "  Plugin header Version: $plugin_version"
+          
+          echo "🐘 PHP Version Check:"
+          echo "  readme.txt: $readme_php"
+          echo "  Plugin header: $plugin_php"
+          
+          echo "📰 WordPress Version Check:"
+          echo "  readme.txt: $readme_wp"
+          echo "  Plugin header: $plugin_wp"
+          
+          errors=0
+          
+          if [ "$readme_stable" != "$plugin_version" ]; then
+            echo "::error::Version mismatch! readme.txt ($readme_stable) != plugin header ($plugin_version)"
+            errors=1
+          fi
+          
+          if [ "$readme_php" != "$plugin_php" ]; then
+            echo "::error::PHP version mismatch! readme.txt ($readme_php) != plugin header ($plugin_php)"
+            errors=1
+          fi
+          
+          if [ "$readme_wp" != "$plugin_wp" ]; then
+            echo "::error::WordPress version mismatch! readme.txt ($readme_wp) != plugin header ($plugin_wp)"
+            errors=1
+          fi
+          
+          if [ $errors -eq 0 ]; then
+            echo "✅ All headers match!"
+          else
+            exit 1
+          fi
+
   text-files:
     name: Text File Checks
     runs-on: ubuntu-latest
@@ -62,7 +150,7 @@ jobs:
             echo "::error::Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."
             exit 1
           fi
-          echo "No escaped quotes found in text files."
+          echo "✅ No escaped quotes found in text files."
 
       - name: Check for trailing whitespace
         run: |
@@ -70,3 +158,76 @@ jobs:
             echo "::warning::Found trailing whitespace in some files."
           fi
 
+      - name: Validate changelog has entry for current version
+        run: |
+          stable_tag=$(grep -i "^Stable tag:" readme.txt | sed 's/.*: *//')
+          if grep -q "^= $stable_tag" changelog.txt || grep -q "^= $stable_tag" readme.txt; then
+            echo "✅ Changelog entry found for version $stable_tag"
+          else
+            echo "::error::No changelog entry found for version $stable_tag"
+            exit 1
+          fi
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for common security issues
+        run: |
+          errors=0
+          
+          # Check for eval() usage
+          if grep -rn '\beval\s*(' *.php 2>/dev/null; then
+            echo "::error::Found eval() usage - potential security risk"
+            errors=1
+          fi
+          
+          # Check for create_function (deprecated and dangerous)
+          if grep -rn '\bcreate_function\s*(' *.php 2>/dev/null; then
+            echo "::error::Found create_function() - deprecated and insecure"
+            errors=1
+          fi
+          
+          # Check for unserialize without allowed_classes
+          if grep -rn '\bunserialize\s*(' *.php 2>/dev/null | grep -v 'allowed_classes'; then
+            echo "::warning::Found unserialize() - ensure allowed_classes is set"
+          fi
+          
+          # Check for direct $_GET/$_POST without sanitization nearby
+          echo "ℹ️  Manual review recommended for superglobal usage:"
+          grep -rn '\$_GET\|\$_POST\|\$_REQUEST' *.php 2>/dev/null | head -10 || true
+          
+          if [ $errors -eq 0 ]; then
+            echo "✅ No critical security issues found"
+          else
+            exit 1
+          fi
+
+  i18n:
+    name: Internationalization
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Install WP-CLI
+        run: |
+          curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x wp-cli.phar
+          sudo mv wp-cli.phar /usr/local/bin/wp
+
+      - name: Check for i18n issues
+        run: |
+          wp i18n make-pot . /tmp/test.pot --skip-js --ignore-domain 2>&1 || true
+          if [ -f /tmp/test.pot ]; then
+            strings=$(grep -c "^msgid" /tmp/test.pot || echo "0")
+            echo "✅ Found $strings translatable strings"
+          fi

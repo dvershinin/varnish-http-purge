@@ -4,6 +4,8 @@
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
  * Version: 5.5.0
+ * Requires at least: 5.0
+ * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
  * Author URI: https://halfelf.org/
  * License: Apache License 2.0

@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: up down build setup test tests logs clean pytest teststack lint phpcs phpcbf phpstan
+.PHONY: up down build setup test tests logs clean pytest teststack lint phpcs phpcbf phpstan php-compat validate security check-all
 
 # ============================================================================
 # Linting and Static Analysis
@@ -8,6 +8,11 @@ SHELL := /bin/bash
 
 lint: phpcs phpstan
 	@echo "All linting checks passed!"
+
+# Run ALL checks (like CI does)
+check-all: lint php-compat validate security check-txt
+	@echo ""
+	@echo "🎉 ALL CHECKS PASSED!"
 
 phpcs:
 	@echo "Running PHP CodeSniffer..."
@@ -44,7 +49,73 @@ check-txt:
 	@if grep -r '\\\"' *.txt 2>/dev/null; then \
 		echo "ERROR: Found escaped quotes in text files!"; exit 1; \
 	else \
-		echo "No escaped quotes found in text files."; \
+		echo "✅ No escaped quotes found in text files."; \
+	fi
+
+php-compat:
+	@echo "Checking PHP compatibility..."
+	@declared=$$(grep -i "^Requires PHP:" readme.txt | sed 's/.*: *//'); \
+	echo "Declared minimum PHP: $$declared"; \
+	if [ -x "$$HOME/.composer/vendor/bin/phpcs" ]; then \
+		$$HOME/.composer/vendor/bin/phpcs --standard=PHPCompatibility \
+			--runtime-set testVersion $$declared \
+			--extensions=php \
+			--ignore=tests/,vendor/ \
+			. && echo "✅ Code is compatible with PHP $$declared+"; \
+	else \
+		echo "PHPCompatibility not installed. Install with:"; \
+		echo "  composer global require phpcompatibility/php-compatibility"; \
+	fi
+
+validate:
+	@echo "Validating plugin headers..."
+	@readme_stable=$$(grep -i "^Stable tag:" readme.txt | sed 's/.*: *//'); \
+	readme_wp=$$(grep -i "^Requires at least:" readme.txt | sed 's/.*: *//'); \
+	readme_php=$$(grep -i "^Requires PHP:" readme.txt | sed 's/.*: *//'); \
+	plugin_version=$$(grep -i "^ \* Version:" varnish-http-purge.php | sed 's/.*: *//'); \
+	plugin_wp=$$(grep -i "^ \* Requires at least:" varnish-http-purge.php | sed 's/.*: *//'); \
+	plugin_php=$$(grep -i "^ \* Requires PHP:" varnish-http-purge.php | sed 's/.*: *//'); \
+	errors=0; \
+	echo "📦 Stable tag: $$readme_stable vs $$plugin_version"; \
+	echo "🐘 PHP version: $$readme_php vs $$plugin_php"; \
+	echo "📰 WP version: $$readme_wp vs $$plugin_wp"; \
+	if [ "$$readme_stable" != "$$plugin_version" ]; then \
+		echo "❌ Version mismatch!"; errors=1; \
+	fi; \
+	if [ "$$readme_php" != "$$plugin_php" ]; then \
+		echo "❌ PHP version mismatch!"; errors=1; \
+	fi; \
+	if [ "$$readme_wp" != "$$plugin_wp" ]; then \
+		echo "❌ WordPress version mismatch!"; errors=1; \
+	fi; \
+	if [ $$errors -eq 0 ]; then \
+		echo "✅ All headers match!"; \
+	else \
+		exit 1; \
+	fi
+
+security:
+	@echo "Running security checks..."
+	@errors=0; \
+	if grep -rn '\beval\s*(' *.php 2>/dev/null; then \
+		echo "❌ Found eval() usage!"; errors=1; \
+	fi; \
+	if grep -rn '\bcreate_function\s*(' *.php 2>/dev/null; then \
+		echo "❌ Found create_function()!"; errors=1; \
+	fi; \
+	if [ $$errors -eq 0 ]; then \
+		echo "✅ No critical security issues found"; \
+	else \
+		exit 1; \
+	fi
+
+changelog:
+	@echo "Checking changelog..."
+	@stable_tag=$$(grep -i "^Stable tag:" readme.txt | sed 's/.*: *//'); \
+	if grep -q "^= $$stable_tag" changelog.txt 2>/dev/null || grep -q "^= $$stable_tag" readme.txt 2>/dev/null; then \
+		echo "✅ Changelog entry found for version $$stable_tag"; \
+	else \
+		echo "❌ No changelog entry for version $$stable_tag"; exit 1; \
 	fi
 
 # ============================================================================
