@@ -7,8 +7,13 @@ concurrency:
   group: wordpress-svn-deploy
   cancel-in-progress: false
 jobs:
-  tag:
-    name: New tag
+  test:
+    name: Run Tests
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    name: Deploy to WordPress.org
+    needs: test  # Only runs if tests pass
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
