@@ -3,6 +3,9 @@ on:
   push:
     tags:
     - "*"
+concurrency:
+  group: wordpress-svn-deploy
+  cancel-in-progress: false
 jobs:
   tag:
     name: New tag

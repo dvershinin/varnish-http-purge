@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - trunk
+concurrency:
+  group: wordpress-svn-deploy
+  cancel-in-progress: false
 jobs:
   trunk:
     name: Push to trunk
