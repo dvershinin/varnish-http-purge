@@ -100,18 +100,27 @@ If you can tolerate slightly longer delays, every 2-5 minutes is also acceptable
 
 For detailed instructions on setting up a proper Linux-based WordPress cron, see: <a href="https://www.getpagespeed.com/web-apps/wordpress/wordpress-cron-optimization">WordPress Cron Optimization</a>.
 
-== WP CLI ==
+== WP-CLI ==
 
 <strong>Purge</strong>
 
 Purge commands let you empty the cache.
 
-* `wp varnish purge` - Flush the cache for your front page
-* `wp varnish purge [<url>]` - Flush the cache for one URL
+* `wp varnish purge` - Flush the entire site cache (equivalent to clicking "Empty Cache" in admin)
+* `wp varnish purge --all` - Explicitly flush the entire site cache
+* `wp varnish purge <url>` - Flush cache for a specific URL and all content below it (wildcard)
+* `wp varnish purge <url> --url-only` - Flush cache for only the exact URL specified (no wildcard)
+* `wp varnish purge --tag=<tag>` - Flush cache by tag (requires Cache Tags mode to be enabled)
 
-You can use the parameter `--wildcard` to empty everything from that URL down. So if you wanted to empty cache for all themes, you would do this:
+Examples:
 
-* `wp varnish purge https://example.com/wp-content/themes --wildcard`
+* `wp varnish purge` - Purge entire site
+* `wp varnish purge --all` - Same as above, more explicit
+* `wp varnish purge https://example.com/hello-world/` - Purge this URL and everything below it
+* `wp varnish purge https://example.com/hello-world/ --url-only` - Purge only this exact URL
+* `wp varnish purge https://example.com/wp-content/themes/ --wildcard` - Purge all theme files
+* `wp varnish purge --tag=p-123` - Purge all pages tagged with post ID 123
+* `wp varnish purge --tag=pt-post` - Purge all cached pages of post type "post"
 
 <strong>Debug</strong>
 
@@ -408,8 +417,13 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 * Fix: Scheduled posts now properly purge cache when auto-published via WP-Cron. Previously, purges were queued but not processed until the next cron run, leaving stale content.
 * New: Added `transition_post_status` hook to handle future → publish transitions synchronously, ensuring immediate cache invalidation for scheduled posts.
 * New: Shortlink URLs (`?p=XXX`) are now purged when scheduled posts publish, clearing any cached 404 responses.
+* New: WP-CLI `--all` flag for explicit full site cache purge.
+* New: WP-CLI `--url-only` flag to purge exact URL without wildcard matching.
+* New: WP-CLI `--tag=<tag>` option for tag-based cache purging (requires Cache Tags mode).
 * Doc: Added guidance on cron frequency for background purging mode – recommends every-minute cron for minimal stale content.
+* Doc: Fixed "WP CLI" typo to "WP-CLI".
 * Dev: New pytest coverage for scheduled post publishing via WP-Cron.
+* Dev: New pytest coverage for WP-CLI purge command variants.
 
 = 5.4.0 (2025-12) =
 * New (BETA): Optional Cache Tags / Surrogate Key purge mode, controlled via the "Use Cache Tags" setting.

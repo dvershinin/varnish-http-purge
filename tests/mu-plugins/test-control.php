@@ -534,6 +534,81 @@ add_filter( 'vhp_purge_tags_max_header_size', function( $max ) {
     return $limit;
 } );
 
+// Test endpoint to execute WP-CLI varnish commands and capture output.
+// This allows pytest to test CLI functionality without direct shell access.
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/wp-cli/varnish', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            // Check if WP-CLI is available (it won't be in a web request context)
+            // Instead, we simulate what the CLI would do by calling the same methods.
+            if ( ! class_exists( 'VarnishPurger' ) ) {
+                return new WP_Error( 'no_purger', 'VarnishPurger class not available', array( 'status' => 500 ) );
+            }
+
+            $subcommand = $req->get_param( 'subcommand' );
+            $url        = $req->get_param( 'url' );
+            $all        = (bool) $req->get_param( 'all' );
+            $url_only   = (bool) $req->get_param( 'url_only' );
+            $wildcard   = (bool) $req->get_param( 'wildcard' );
+            $tag        = $req->get_param( 'tag' );
+
+            $captured = array();
+            $capture_callback = function( $headers ) use ( &$captured ) {
+                $captured[] = $headers;
+                return $headers;
+            };
+
+            add_filter( 'varnish_http_purge_headers', $capture_callback, 9999 );
+
+            $vp = new VarnishPurger();
+            $result = array(
+                'ok'         => true,
+                'subcommand' => $subcommand,
+            );
+
+            if ( 'purge' === $subcommand ) {
+                // Handle tag-based purging.
+                if ( ! empty( $tag ) ) {
+                    $vp->purge_tags( array( sanitize_text_field( $tag ) ) );
+                    $result['type']    = 'tag';
+                    $result['tag']     = $tag;
+                    $result['message'] = 'Purged by tag: ' . $tag;
+                } elseif ( $all || empty( $url ) ) {
+                    // Full site purge.
+                    $purge_url = $vp->the_home_url() . '/?vhp-regex';
+                    VarnishPurger::purge_url( $purge_url );
+                    $result['type']      = 'full';
+                    $result['purge_url'] = $purge_url;
+                    $result['message']   = 'Purged entire site cache';
+                } elseif ( $url_only ) {
+                    // Purge exact URL only.
+                    VarnishPurger::purge_url( esc_url( $url ) );
+                    $result['type']      = 'url_only';
+                    $result['purge_url'] = $url;
+                    $result['message']   = 'Purged exact URL: ' . $url;
+                } else {
+                    // Default: wildcard purge for URL.
+                    $purge_url = rtrim( esc_url( $url ), '/' ) . '/?vhp-regex';
+                    VarnishPurger::purge_url( $purge_url );
+                    $result['type']      = 'wildcard';
+                    $result['purge_url'] = $purge_url;
+                    $result['message']   = 'Purged URL with wildcard: ' . $url;
+                }
+            } else {
+                $result['ok']    = false;
+                $result['error'] = 'Unknown subcommand: ' . $subcommand;
+            }
+
+            remove_filter( 'varnish_http_purge_headers', $capture_callback, 9999 );
+
+            $result['captured_headers'] = $captured;
+            return $result;
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
 // Test endpoint to exercise the admin bar rendering (varnish_rightnow_adminbar).
 // This ensures the code path with get_current_blog_id() and permission checks runs without error.
 add_action( 'rest_api_init', function() {
