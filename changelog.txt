@@ -1,19 +1,23 @@
 ## CHANGELOG
 
+= 5.5.1 =
+* December 2025
+* New: WP-CLI `--all` flag for explicit full site cache purge
+* New: WP-CLI `--url-only` flag to purge exact URL without wildcard matching
+* New: WP-CLI `--tag=<tag>` option for tag-based cache purging (requires Cache Tags mode)
+* Doc: Fixed WP-CLI documentation - `wp varnish purge` correctly documented as full site purge
+* Doc: Fixed "WP CLI" typo to "WP-CLI" in readme
+* Dev: Added PHPCS/PHPStan linting infrastructure
+* Dev: Added GitHub Actions CI workflow for linting
+* Dev: New pytest coverage for WP-CLI purge command variants
+
 = 5.5.0 =
 * December 2025
 * Fix: Scheduled posts now properly purge cache when auto-published via WP-Cron. Previously, purges were queued but not processed until the next cron run, leaving stale content.
 * New: Added `transition_post_status` hook to handle future → publish transitions synchronously, ensuring immediate cache invalidation for scheduled posts.
 * New: Shortlink URLs (`?p=XXX`) are now purged when scheduled posts publish, clearing any cached 404 responses.
-* New: WP-CLI improvements:
-  * `wp varnish purge` now correctly documented as full site purge (was misleadingly documented as "front page only")
-  * Added `--all` flag for explicit full site cache purge
-  * Added `--url-only` flag to purge exact URL without wildcard matching
-  * Added `--tag=<tag>` option for tag-based cache purging (requires Cache Tags mode)
 * Doc: Added guidance on cron frequency for background purging mode.
-* Doc: Fixed "WP CLI" typo to "WP-CLI" in readme.
 * Dev: New pytest coverage for scheduled post publishing via WP-Cron.
-* Dev: New pytest coverage for WP-CLI purge command variants.
 
 = 5.4.0 =
 * December 2025

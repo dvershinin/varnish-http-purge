@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.5.0
+Stable tag: 5.5.1
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -413,17 +413,21 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 
 == Changelog ==
 
+= 5.5.1 (2025-12) =
+* New: WP-CLI `--all` flag for explicit full site cache purge.
+* New: WP-CLI `--url-only` flag to purge exact URL without wildcard matching.
+* New: WP-CLI `--tag=<tag>` option for tag-based cache purging (requires Cache Tags mode).
+* Doc: Fixed WP-CLI documentation – `wp varnish purge` correctly documented as full site purge.
+* Doc: Fixed "WP CLI" typo to "WP-CLI".
+* Dev: Added PHPCS/PHPStan linting infrastructure and GitHub Actions CI.
+* Dev: New pytest coverage for WP-CLI purge command variants.
+
 = 5.5.0 (2025-12) =
 * Fix: Scheduled posts now properly purge cache when auto-published via WP-Cron. Previously, purges were queued but not processed until the next cron run, leaving stale content.
 * New: Added `transition_post_status` hook to handle future → publish transitions synchronously, ensuring immediate cache invalidation for scheduled posts.
 * New: Shortlink URLs (`?p=XXX`) are now purged when scheduled posts publish, clearing any cached 404 responses.
-* New: WP-CLI `--all` flag for explicit full site cache purge.
-* New: WP-CLI `--url-only` flag to purge exact URL without wildcard matching.
-* New: WP-CLI `--tag=<tag>` option for tag-based cache purging (requires Cache Tags mode).
 * Doc: Added guidance on cron frequency for background purging mode – recommends every-minute cron for minimal stale content.
-* Doc: Fixed "WP CLI" typo to "WP-CLI".
 * Dev: New pytest coverage for scheduled post publishing via WP-Cron.
-* Dev: New pytest coverage for WP-CLI purge command variants.
 
 = 5.4.0 (2025-12) =
 * New (BETA): Optional Cache Tags / Surrogate Key purge mode, controlled via the "Use Cache Tags" setting.
