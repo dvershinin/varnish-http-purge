@@ -51,47 +51,111 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 		 * ## OPTIONS
 		 *
 		 * [<url>]
-		 * : Specify a URL
+		 * : Specify a URL to purge. If omitted, purges the entire site cache.
+		 *
+		 * [--all]
+		 * : Explicitly purge the entire site cache (same as running without arguments).
 		 *
 		 * [--wildcard]
-		 * : Include include all subfolders and files.
+		 * : Include all subfolders and files below the specified URL.
+		 *   This is the default behavior when a URL is provided.
+		 *
+		 * [--url-only]
+		 * : Purge only the exact URL specified, without wildcard matching.
+		 *
+		 * [--tag=<tag>]
+		 * : Purge by cache tag (requires Cache Tags mode to be enabled).
+		 *   Common tags: p-{id} (post), pt-{type} (post type), t-{id} (term),
+		 *   a-{id} (author), home, blog, archive, feed.
 		 *
 		 * ## EXAMPLES
 		 *
+		 *      # Purge the entire site cache
 		 *      wp varnish purge
-		 *      wp varnish purge http://example.com/wp-content/themes/twentyeleventy/style.css
-		 *      wp varnish purge http://example.com/wp-content/themes/ --wildcard
+		 *      wp varnish purge --all
+		 *
+		 *      # Purge a specific URL and everything below it
+		 *      wp varnish purge https://example.com/hello-world/
+		 *
+		 *      # Purge only the exact URL (no wildcard)
+		 *      wp varnish purge https://example.com/hello-world/ --url-only
+		 *
+		 *      # Purge all theme files
+		 *      wp varnish purge https://example.com/wp-content/themes/ --wildcard
+		 *
+		 *      # Purge by cache tag (requires Cache Tags mode)
+		 *      wp varnish purge --tag=p-123
+		 *      wp varnish purge --tag=pt-post
+		 *      wp varnish purge --tag=home
 		 */
 		public function purge( $args, $assoc_args ) {
 
 			$wp_version  = get_bloginfo( 'version' );
 			$cli_version = WP_CLI_VERSION;
 
-			// Set the URL/path.
-			if ( ! empty( $args ) ) {
-				list( $url ) = $args; }
+			// Handle tag-based purging.
+			if ( isset( $assoc_args['tag'] ) ) {
+				$tag = sanitize_text_field( $assoc_args['tag'] );
 
-			// If wildcard is set, or the URL argument is empty then treat this as a full purge.
+				if ( empty( $tag ) ) {
+					WP_CLI::error( __( 'You must provide a tag value with --tag=<tag>.', 'varnish-http-purge' ) );
+				}
+
+				// Check if Cache Tags mode is enabled.
+				if ( ! get_site_option( 'vhp_varnish_use_tags' ) ) {
+					WP_CLI::warning( __( 'Cache Tags mode is not enabled. The purge request will be sent, but may not work unless your cache supports tag-based purging.', 'varnish-http-purge' ) );
+				}
+
+				$this->varnish_purge->purge_tags( array( $tag ) );
+
+				// translators: %s is the cache tag being purged.
+				WP_CLI::success( sprintf( __( 'Proxy Cache Purge has flushed cache for tag: %s', 'varnish-http-purge' ), $tag ) );
+				return;
+			}
+
+			// Set the URL/path.
+			$url = '';
+			if ( ! empty( $args ) ) {
+				list( $url ) = $args;
+			}
+
+			// Determine purge behavior:
+			// --all: full site purge (explicit)
+			// --url-only: purge only the exact URL, no wildcard
+			// --wildcard: purge URL with wildcard (default for URLs)
+			// No URL and no --all: full site purge (implicit)
 			$pregex = '';
 			$wild   = '';
-			if ( isset( $assoc_args['wildcard'] ) || empty( $url ) ) {
+
+			$is_all_flag = isset( $assoc_args['all'] );
+			$is_url_only = isset( $assoc_args['url-only'] );
+			$is_wildcard = isset( $assoc_args['wildcard'] );
+
+			if ( $is_all_flag ) {
+				// Explicit full purge.
+				$url    = $this->varnish_purge->the_home_url();
+				$pregex = '/?vhp-regex';
+				$wild   = '.*';
+			} elseif ( empty( $url ) ) {
+				// No URL provided = full site purge.
+				$url    = $this->varnish_purge->the_home_url();
+				$pregex = '/?vhp-regex';
+				$wild   = '.*';
+			} elseif ( $is_url_only ) {
+				// Purge only the exact URL, no regex.
+				$url    = esc_url( $url );
+				$pregex = '';
+				$wild   = '';
+			} else {
+				// Default behavior for URL: wildcard purge.
+				// This is the existing behavior when a URL is provided.
+				$url    = esc_url( $url );
+				$url    = rtrim( $url, '/' );
 				$pregex = '/?vhp-regex';
 				$wild   = '.*';
 			}
 
 			wp_create_nonce( 'vhp-flush-cli' );
-
-			// If the URL is not empty, sanitize. Else use home URL.
-			if ( ! empty( $url ) ) {
-				$url = esc_url( $url );
-
-				// If it's a regex, let's make sure we don't have a trailing slash.
-				if ( isset( $assoc_args['wildcard'] ) ) {
-					$url = rtrim( $url, '/' );
-				}
-			} else {
-				$url = $this->varnish_purge->the_home_url();
-			}
 
 			if ( version_compare( $wp_version, '4.6', '>=' ) && ( version_compare( $cli_version, '0.25.0', '<' ) || version_compare( $cli_version, '0.25.0-alpha', 'eq' ) ) ) {
 
@@ -111,7 +175,16 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 				WP_CLI::log( sprintf( __( 'Proxy Cache Purge is flushing the URL %1$s with params %2$s.', 'varnish-http-purge' ), $url, $pregex ) );
 			}
 
-			WP_CLI::success( __( 'Proxy Cache Purge has flushed your cache.', 'varnish-http-purge' ) );
+			// Provide appropriate success message.
+			if ( ! empty( $pregex ) && ( $is_all_flag || empty( $args ) ) ) {
+				WP_CLI::success( __( 'Proxy Cache Purge has flushed the entire site cache.', 'varnish-http-purge' ) );
+			} elseif ( ! empty( $pregex ) ) {
+				// translators: %s is the URL being flushed.
+				WP_CLI::success( sprintf( __( 'Proxy Cache Purge has flushed cache for %s and all content below it.', 'varnish-http-purge' ), $url ) );
+			} else {
+				// translators: %s is the URL being flushed.
+				WP_CLI::success( sprintf( __( 'Proxy Cache Purge has flushed cache for: %s', 'varnish-http-purge' ), $url ) );
+			}
 		}
 
 		/**

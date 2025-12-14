@@ -5,8 +5,15 @@
 * Fix: Scheduled posts now properly purge cache when auto-published via WP-Cron. Previously, purges were queued but not processed until the next cron run, leaving stale content.
 * New: Added `transition_post_status` hook to handle future → publish transitions synchronously, ensuring immediate cache invalidation for scheduled posts.
 * New: Shortlink URLs (`?p=XXX`) are now purged when scheduled posts publish, clearing any cached 404 responses.
+* New: WP-CLI improvements:
+  * `wp varnish purge` now correctly documented as full site purge (was misleadingly documented as "front page only")
+  * Added `--all` flag for explicit full site cache purge
+  * Added `--url-only` flag to purge exact URL without wildcard matching
+  * Added `--tag=<tag>` option for tag-based cache purging (requires Cache Tags mode)
 * Doc: Added guidance on cron frequency for background purging mode.
+* Doc: Fixed "WP CLI" typo to "WP-CLI" in readme.
 * Dev: New pytest coverage for scheduled post publishing via WP-Cron.
+* Dev: New pytest coverage for WP-CLI purge command variants.
 
 = 5.4.0 =
 * December 2025
