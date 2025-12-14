@@ -1,5 +1,10 @@
 ## CHANGELOG
 
+= 5.5.2 =
+* December 2025
+* Fix: Removed development files from WordPress.org distribution (Cursor rules, PHPStan config, Makefile, etc.)
+* Fix: Added concurrency control to CI workflows to prevent SVN deploy race conditions
+
 = 5.5.1 =
 * December 2025
 * New: WP-CLI `--all` flag for explicit full site cache purge
