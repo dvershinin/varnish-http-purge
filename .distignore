@@ -3,6 +3,7 @@
 # Version control and CI/CD
 .git
 .gitignore
+.gitattributes
 .github
 .gitlab-ci.yml
 .travis.yml
