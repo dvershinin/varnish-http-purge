@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.5.2
+Stable tag: 5.5.3
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -412,6 +412,15 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.5.3 (2025-12) =
+* New: End-to-End Cache Test in "Check Caching" admin page - a comprehensive 7-step test that verifies both caching AND purging work correctly, without relying on header detection heuristics.
+* Fix: Header Analysis tab now stays active after running a URL scan.
+* Fix: Removed duplicate introductory text in Header Analysis tab.
+
+= 5.5.2 (2025-12) =
+* Fix: Removed development files from WordPress.org distribution.
+* Fix: Added concurrency control to CI workflows to prevent SVN deploy race conditions.
 
 = 5.5.1 (2025-12) =
 * New: WP-CLI `--all` flag for explicit full site cache purge.

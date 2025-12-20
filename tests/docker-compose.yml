@@ -41,6 +41,8 @@ services:
         define('WP_ENVIRONMENT_TYPE', 'development');
         define('DISABLE_WP_CRON', true);
         define('WP_DEBUG_DISPLAY', false);
+        // Translate localhost URLs to varnish container for debug checks
+        define('VHP_DEBUG_INTERNAL_HOST', 'varnish');
     volumes:
       - wp_data:/var/www/html
       - ../:/var/www/html/wp-content/plugins/varnish-http-purge
@@ -83,6 +85,8 @@ services:
         define('WP_ENVIRONMENT_TYPE', 'development');
         define('DISABLE_WP_CRON', true);
         define('WP_DEBUG_DISPLAY', false);
+        // Translate localhost URLs to varnish container for debug checks
+        define('VHP_DEBUG_INTERNAL_HOST', 'varnish');
     networks:
       - vhp_net
 

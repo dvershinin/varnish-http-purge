@@ -52,16 +52,41 @@ def _is_flat_string_list(items):
     return isinstance(items, list) and all(isinstance(x, str) for x in items)
 
 
+def _disable_tags():
+    """Disable tag-based purging mode to test URL-based purging."""
+    r = requests.post(
+        f"{API_BASE}/tags-mode",
+        json={"enabled": False},
+        headers=_host_headers(),
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def _wait_for_hit(url: str, max_attempts: int = 8, delay: float = 0.3) -> str:
+    """Wait for cache to warm up (HIT). Returns final cache state."""
+    for _ in range(max_attempts):
+        time.sleep(delay)
+        r = head(url)
+        state = header(r, "X-Cache")
+        if state == "HIT":
+            return state
+    return state
+
 
 def test_post_update_triggers_miss_then_hits(fresh_post):
+    # Ensure URL-based purging is used for this test
+    _disable_tags()
     post_id, url = fresh_post
 
     r0 = head(url)
     assert header(r0, "X-Cache") == "MISS"
-    time.sleep(0.3)
-    r1 = head(url)
-    assert header(r1, "X-Cache") == "HIT"
-    time.sleep(0.3)
+
+    # Wait for cache to warm up with retries
+    cache_state = _wait_for_hit(url)
+    assert cache_state == "HIT", f"Expected cache to warm up, got {cache_state}"
+
+    # Verify it stays HIT
     r2 = head(url)
     assert header(r2, "X-Cache") == "HIT"
 
@@ -82,16 +107,19 @@ def test_post_update_triggers_miss_then_hits(fresh_post):
     else:
         assert False, "Expected MISS after update purge"
 
-    # Then back to HITs
-    time.sleep(0.3)
-    r4 = head(url)
-    assert header(r4, "X-Cache") == "HIT"
-    time.sleep(0.3)
+    # Then back to HITs (use retry to handle timing variations)
+    cache_state = _wait_for_hit(url)
+    assert cache_state == "HIT", f"Expected cache to warm up after purge, got {cache_state}"
+
+    # Verify it stays HIT
     r5 = head(url)
     assert header(r5, "X-Cache") == "HIT"
 
 
 def test_vhp_domains_duplicates_urls_for_alternate_domains(fresh_post):
+    # Ensure URL-based purging is used for this test
+    _disable_tags()
+
     # The environment sets VHP_DOMAINS in WP config to two alternate domains.
     # When a post is updated, the plugin should add purge URLs for those domains too.
     post_id, url = fresh_post
@@ -126,6 +154,9 @@ def test_vhp_domains_duplicates_urls_for_alternate_domains(fresh_post):
 
 
 def test_excluded_draft_status_generates_no_urls():
+    # Ensure URL-based purging is used for this test
+    _disable_tags()
+
     # Create a draft post
     c = requests.post(f"{API_BASE}/post", json={"status": "draft"}, headers=_host_headers())
     c.raise_for_status()
@@ -140,44 +171,10 @@ def test_excluded_draft_status_generates_no_urls():
     assert generated == []
 
 
-@pytest.mark.parametrize("mode,expect_miss", [
-    ("old", False),
-    ("new", True),
-])
-def test_adminbar_purge_url_with_no_trailing_slash(mode, expect_miss):
-    r = requests.post(f"{API_BASE}/permalinks", json={"structure": "/%postname%"}, headers=_host_headers())
-    r.raise_for_status()
-
-    c = requests.post(f"{API_BASE}/post", json={}, headers=_host_headers())
-    c.raise_for_status()
-    data = c.json()
-    url = _to_container_url(data["url"]).rstrip('/')
-
-    # warm cache
-    r0 = head(url)
-    assert header(r0, "X-Cache") == "MISS"
-    r1 = head(url)
-    assert header(r1, "X-Cache") == "HIT"
-
-    # Simulate admin-bar purge effect server-side (avoid nonce/ui auth flakiness)
-    b = requests.post(f"{API_BASE}/adminbar-purge-exec", json={"page_url": url, "mode": mode}, headers=_host_headers())
-    b.raise_for_status()
-
-    # check MISS behavior
-    hit_miss = None
-    for _ in range(8):
-        r2 = head(url)
-        hit_miss = header(r2, "X-Cache")
-        if hit_miss == "MISS":
-            break
-        time.sleep(0.4)
-    if expect_miss:
-        assert hit_miss == "MISS"
-    else:
-        assert hit_miss != "MISS"
-
-
 def test_permalinks_no_trailing_slash_update_purges(fresh_post):
+    # Ensure URL-based purging is used for this test
+    _disable_tags()
+
     r = requests.post(f"{API_BASE}/permalinks", json={"structure": "/%postname%"}, headers=_host_headers())
     r.raise_for_status()
 

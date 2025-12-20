@@ -155,8 +155,6 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 				$wild   = '.*';
 			}
 
-			wp_create_nonce( 'vhp-flush-cli' );
-
 			if ( version_compare( $wp_version, '4.6', '>=' ) && ( version_compare( $cli_version, '0.25.0', '<' ) || version_compare( $cli_version, '0.25.0-alpha', 'eq' ) ) ) {
 
 				// translators: %1$s is the version of WP-CLI.

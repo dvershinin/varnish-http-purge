@@ -44,7 +44,6 @@ make tests
 Notes:
 - Tests live under `tests/`.
 - `tests/mu-plugins/test-control.php` exposes REST endpoints to change permalink structure and create/update posts.
-- One test is marked xfail to document current bug when permalinks omit trailing slash.
 
 For isolated local runs without the project root compose, you can use `tests/docker-compose.yml` and `tests/setup.sh`:
 

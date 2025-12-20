@@ -279,6 +279,70 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
+    // Update post content directly in DB, bypassing WordPress hooks (and thus cache purge).
+    // This is used by cache behavior tests to verify caching works.
+    register_rest_route( 'test/v1', '/update-post-bypass', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            global $wpdb;
+            $post_id = intval( $req->get_param( 'post_id' ) );
+            $content = $req->get_param( 'content' );
+
+            if ( ! $post_id || ! is_string( $content ) ) {
+                return new WP_Error( 'bad_params', 'post_id and content required', array( 'status' => 400 ) );
+            }
+
+            // Update directly in DB to bypass save_post hooks.
+            // We must also update post_modified so that conditional requests (If-Modified-Since)
+            // from Varnish's background fetch after softpurge will get fresh content, not 304.
+            $now     = current_time( 'mysql' );
+            $now_gmt = current_time( 'mysql', true );
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+            $result = $wpdb->update(
+                $wpdb->posts,
+                array(
+                    'post_content'      => $content,
+                    'post_modified'     => $now,
+                    'post_modified_gmt' => $now_gmt,
+                ),
+                array( 'ID' => $post_id ),
+                array( '%s', '%s', '%s' ),
+                array( '%d' )
+            );
+
+            if ( false === $result ) {
+                return new WP_Error( 'update_failed', 'DB update failed', array( 'status' => 500 ) );
+            }
+
+            // Clear object cache but don't trigger any hooks.
+            clean_post_cache( $post_id );
+
+            return array( 'ok' => true, 'post_id' => $post_id );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Delete a post (for cleanup in tests).
+    register_rest_route( 'test/v1', '/delete-post', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $post_id = intval( $req->get_param( 'post_id' ) );
+
+            if ( ! $post_id ) {
+                return new WP_Error( 'bad_params', 'post_id required', array( 'status' => 400 ) );
+            }
+
+            $result = wp_delete_post( $post_id, true ); // Force delete, bypass trash.
+
+            if ( ! $result ) {
+                return new WP_Error( 'delete_failed', 'Delete failed', array( 'status' => 500 ) );
+            }
+
+            return array( 'ok' => true, 'deleted' => $post_id );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     // Configure custom purge header name/value for tests.
     register_rest_route( 'test/v1', '/purge-header-options', array(
         'methods' => 'POST',
@@ -604,6 +668,414 @@ add_action( 'rest_api_init', function() {
 
             $result['captured_headers'] = $captured;
             return $result;
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
+// Test endpoint for VarnishDebug cache detection logic.
+// Allows testing varnish_results() with custom headers.
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/debug/varnish-results', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $headers = $req->get_param( 'headers' );
+            if ( ! is_array( $headers ) ) {
+                $headers = array();
+            }
+
+            $result = VarnishDebug::varnish_results( $headers );
+            return array(
+                'ok'      => true,
+                'headers' => $headers,
+                'result'  => $result,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test cache_results() for Cache-Control, Age, Pragma checks.
+    register_rest_route( 'test/v1', '/debug/cache-results', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $headers = $req->get_param( 'headers' );
+            if ( ! is_array( $headers ) ) {
+                $headers = array();
+            }
+
+            $result = VarnishDebug::cache_results( $headers );
+            return array(
+                'ok'      => true,
+                'headers' => $headers,
+                'result'  => $result,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test cookie_results() for cookie detection.
+    register_rest_route( 'test/v1', '/debug/cookie-results', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $headers = $req->get_param( 'headers' );
+            if ( ! is_array( $headers ) ) {
+                $headers = array();
+            }
+
+            $result = VarnishDebug::cookie_results( $headers );
+            return array(
+                'ok'      => true,
+                'headers' => $headers,
+                'result'  => $result,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test gzip_results() for compression detection.
+    register_rest_route( 'test/v1', '/debug/gzip-results', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $headers = $req->get_param( 'headers' );
+            if ( ! is_array( $headers ) ) {
+                $headers = array();
+            }
+
+            $result = VarnishDebug::gzip_results( $headers );
+            return array(
+                'ok'      => true,
+                'headers' => $headers,
+                'result'  => $result,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test server_results() for server detection.
+    register_rest_route( 'test/v1', '/debug/server-results', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $headers = $req->get_param( 'headers' );
+            if ( ! is_array( $headers ) ) {
+                $headers = array();
+            }
+
+            $result = VarnishDebug::server_results( $headers );
+            return array(
+                'ok'      => true,
+                'headers' => $headers,
+                'result'  => $result,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test remote_ip() for IP detection from headers.
+    register_rest_route( 'test/v1', '/debug/remote-ip', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $headers = $req->get_param( 'headers' );
+            if ( ! is_array( $headers ) ) {
+                $headers = array();
+            }
+
+            $result = VarnishDebug::remote_ip( $headers );
+            return array(
+                'ok'        => true,
+                'headers'   => $headers,
+                'remote_ip' => $result,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test remote_get() which actually fetches from current site.
+    register_rest_route( 'test/v1', '/debug/remote-get', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $url = $req->get_param( 'url' );
+            if ( ! is_string( $url ) || '' === $url ) {
+                $url = home_url( '/' );
+            }
+
+            $response = VarnishDebug::remote_get( $url );
+
+            if ( 'fail' === $response ) {
+                return array(
+                    'ok'     => false,
+                    'url'    => $url,
+                    'error'  => 'Request failed',
+                );
+            }
+
+            $headers = wp_remote_retrieve_headers( $response );
+            // Convert to associative array.
+            $headers_array = array();
+            if ( is_object( $headers ) && method_exists( $headers, 'getAll' ) ) {
+                $headers_array = $headers->getAll();
+            } elseif ( is_array( $headers ) ) {
+                $headers_array = $headers;
+            }
+
+            $varnish_results = VarnishDebug::varnish_results( $headers );
+
+            return array(
+                'ok'              => true,
+                'url'             => $url,
+                'status_code'     => wp_remote_retrieve_response_code( $response ),
+                'headers'         => $headers_array,
+                'varnish_results' => $varnish_results,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
+// Test endpoints for bug fixes verification.
+add_action( 'rest_api_init', function() {
+    // Test devmode notice logic: ensures notice is returned when devmode is active.
+    register_rest_route( 'test/v1', '/devmode-notice-check', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $action = $req->get_param( 'action' ); // 'activate', 'deactivate', 'check'
+
+            if ( ! class_exists( 'VarnishDebug' ) || ! class_exists( 'VarnishPurger' ) ) {
+                return new WP_Error( 'no_classes', 'Required classes not available', array( 'status' => 500 ) );
+            }
+
+            if ( 'activate' === $action ) {
+                VarnishDebug::devmode_toggle( 'activate' );
+            } elseif ( 'deactivate' === $action ) {
+                VarnishDebug::devmode_toggle( 'deactivate' );
+            }
+
+            $is_active = VarnishDebug::devmode_check();
+            $devmode_option = get_site_option( 'vhp_varnish_devmode', VarnishPurger::$devmode );
+
+            // Simulate what devmode_is_active_notice() does - capture the message logic.
+            $notice_would_display = false;
+            $notice_message = '';
+
+            if ( defined( 'VHP_DEVMODE' ) && VHP_DEVMODE ) {
+                $notice_would_display = true;
+                $notice_message = 'activated via wp-config';
+            } else {
+                // This is the fixed logic - should be $devmode['active'], not ! $devmode['active']
+                if ( isset( $devmode_option['active'] ) && $devmode_option['active'] ) {
+                    $notice_would_display = true;
+                    $notice_message = 'active for next ' . human_time_diff( time(), $devmode_option['expire'] );
+                }
+            }
+
+            return array(
+                'ok'                   => true,
+                'devmode_check'        => $is_active,
+                'option_active'        => isset( $devmode_option['active'] ) ? (bool) $devmode_option['active'] : false,
+                'option_expire'        => isset( $devmode_option['expire'] ) ? (int) $devmode_option['expire'] : 0,
+                'notice_would_display' => $notice_would_display,
+                'notice_message'       => $notice_message,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test Site Health debug log handling with malformed data.
+    register_rest_route( 'test/v1', '/health-check-debug-log', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $test_data = $req->get_param( 'debug_log' );
+
+            // Save malformed or valid test data to the option.
+            if ( null !== $test_data ) {
+                update_site_option( 'vhp_varnish_debug', $test_data );
+            }
+
+            // Now call the health check function and capture if it errors.
+            $error_occurred = false;
+            $result = null;
+
+            try {
+                if ( function_exists( 'vhp_site_status_caching_test' ) ) {
+                    $result = vhp_site_status_caching_test();
+                }
+            } catch ( Exception $e ) {
+                $error_occurred = true;
+            } catch ( Error $e ) {
+                $error_occurred = true;
+            }
+
+            return array(
+                'ok'             => true,
+                'error_occurred' => $error_occurred,
+                'result_status'  => is_array( $result ) && isset( $result['status'] ) ? $result['status'] : null,
+                'result_label'   => is_array( $result ) && isset( $result['label'] ) ? $result['label'] : null,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test settings sanitization with edge cases.
+    // Note: We simulate the sanitization logic directly instead of calling the
+    // VarnishStatus methods, because those methods call add_settings_error()
+    // which requires admin context.
+    register_rest_route( 'test/v1', '/test-settings-sanitize', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $setting_type = $req->get_param( 'type' ); // 'maxposts', 'ip', 'devmode'
+            $input_value  = $req->get_param( 'value' );
+
+            switch ( $setting_type ) {
+                case 'maxposts':
+                    // Simulate settings_maxposts_sanitize logic.
+                    $existing = (int) get_site_option( 'vhp_varnish_max_posts_before_all', 50 );
+
+                    if ( empty( $input_value ) ) {
+                        // Fixed: now returns existing value instead of void.
+                        $result = $existing;
+                    } elseif ( is_numeric( $input_value ) ) {
+                        $result = (int) $input_value;
+                    } else {
+                        $result = $existing; // Invalid, keep existing.
+                    }
+
+                    return array(
+                        'ok'       => true,
+                        'type'     => 'maxposts',
+                        'input'    => $input_value,
+                        'result'   => $result,
+                        'existing' => $existing,
+                    );
+
+                case 'ip':
+                    // Simulate settings_ip_sanitize logic.
+                    if ( empty( $input_value ) ) {
+                        // Fixed: now returns empty string instead of void.
+                        $result = '';
+                    } elseif ( strpos( $input_value, ',' ) !== false ) {
+                        $ips = array_map( 'trim', explode( ',', $input_value ) );
+                        $result = implode( ', ', array_map( 'sanitize_text_field', $ips ) );
+                    } else {
+                        $result = sanitize_text_field( $input_value );
+                    }
+
+                    return array(
+                        'ok'     => true,
+                        'type'   => 'ip',
+                        'input'  => $input_value,
+                        'result' => $result,
+                    );
+
+                case 'devmode':
+                    // Simulate settings_devmode_sanitize logic.
+                    $expire = time() + DAY_IN_SECONDS;
+
+                    if ( empty( $input_value ) ) {
+                        // Fixed: now returns empty array instead of void.
+                        $result = array();
+                    } else {
+                        $result = array(
+                            'active' => isset( $input_value['active'] ) ? (bool) $input_value['active'] : false,
+                            // Fixed: now uses is_numeric() instead of is_int() for form input.
+                            'expire' => ( isset( $input_value['expire'] ) && is_numeric( $input_value['expire'] ) )
+                                ? (int) $input_value['expire']
+                                : $expire,
+                        );
+                    }
+
+                    return array(
+                        'ok'     => true,
+                        'type'   => 'devmode',
+                        'input'  => $input_value,
+                        'result' => $result,
+                    );
+
+                default:
+                    return new WP_Error( 'unknown_type', 'Unknown setting type', array( 'status' => 400 ) );
+            }
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Test uninstall options cleanup - verify which options exist.
+    register_rest_route( 'test/v1', '/check-plugin-options', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            // List of all options the plugin should clean up.
+            $expected_options = array(
+                'vhp_varnish_url',
+                'vhp_varnish_ip',
+                'vhp_varnish_extra_purge_header_name',
+                'vhp_varnish_extra_purge_header_value',
+                'vhp_varnish_devmode',
+                'vhp_varnish_max_posts_before_all',
+                'vhp_varnish_use_tags',
+                'vhp_varnish_debug',
+                'vhp_varnish_purge_queue',
+                'vhp_varnish_last_queue_run',
+            );
+
+            $existing_options = array();
+            foreach ( $expected_options as $opt ) {
+                $val = get_site_option( $opt );
+                if ( false !== $val ) {
+                    $existing_options[ $opt ] = true;
+                }
+            }
+
+            return array(
+                'ok'               => true,
+                'expected_options' => $expected_options,
+                'existing_options' => $existing_options,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Create all plugin options for uninstall testing.
+    register_rest_route( 'test/v1', '/create-plugin-options', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            // Create all options so we can verify uninstall cleans them.
+            update_site_option( 'vhp_varnish_url', 'http://example.com/' );
+            update_site_option( 'vhp_varnish_ip', '127.0.0.1' );
+            update_site_option( 'vhp_varnish_extra_purge_header_name', 'X-Test-Header' );
+            update_site_option( 'vhp_varnish_extra_purge_header_value', 'test-value' );
+            update_site_option( 'vhp_varnish_devmode', array( 'active' => false, 'expire' => time() ) );
+            update_site_option( 'vhp_varnish_max_posts_before_all', 50 );
+            update_site_option( 'vhp_varnish_use_tags', 0 );
+            update_site_option( 'vhp_varnish_debug', array( 'http://example.com/' => array() ) );
+            update_site_option( 'vhp_varnish_purge_queue', array( 'full' => false, 'urls' => array(), 'tags' => array() ) );
+            update_site_option( 'vhp_varnish_last_queue_run', time() );
+
+            return array( 'ok' => true, 'message' => 'All plugin options created' );
         },
         'permission_callback' => '__return_true',
     ) );

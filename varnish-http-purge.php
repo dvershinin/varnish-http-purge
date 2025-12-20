@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.5.2
+ * Version: 5.5.3
  * Requires at least: 5.0
  * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
@@ -40,7 +40,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.5.2';
+	public static $version = '5.5.3';
 
 	/**
 	 * List of URLs to be purged
@@ -261,7 +261,7 @@ class VarnishPurger {
 		// Success: Admin notice when purging.
 		if ( ( isset( $_GET['vhp_flush_all'] ) && check_admin_referer( 'vhp-flush-all' ) ) ||
 			( isset( $_GET['vhp_flush_do'] ) && check_admin_referer( 'vhp-flush-do' ) ) ) {
-			if ( 'devmode' === $_GET['vhp_flush_do'] && isset( $_GET['vhp_set_devmode'] ) ) {
+			if ( isset( $_GET['vhp_flush_do'] ) && 'devmode' === $_GET['vhp_flush_do'] && isset( $_GET['vhp_set_devmode'] ) ) {
 				VarnishDebug::devmode_toggle( esc_attr( $_GET['vhp_set_devmode'] ) );
 				add_action( 'admin_notices', array( $this, 'admin_message_devmode' ) );
 			} else {
@@ -675,7 +675,7 @@ class VarnishPurger {
 			$devmode = get_site_option( 'vhp_varnish_devmode', self::$devmode );
 			$time    = human_time_diff( time(), $devmode['expire'] );
 
-			if ( ! $devmode['active'] ) {
+			if ( $devmode['active'] ) {
 				if ( ! is_multisite() ) {
 					// translators: %1$s is the time until dev mode expires.
 					// translators: %2$s is a link to the settings pages.

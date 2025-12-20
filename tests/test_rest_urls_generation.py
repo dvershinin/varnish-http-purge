@@ -13,11 +13,24 @@ def _host_headers():
     return {"Host": HOST_HEADER_VALUE}
 
 
+def _disable_tags():
+    """Disable tag-based purging so URL generation is used instead."""
+    r = requests.post(
+        f"{API_BASE}/tags-mode",
+        json={"enabled": False},
+        headers=_host_headers(),
+    )
+    r.raise_for_status()
+
+
 def _contains(substr: str, urls: list[str]) -> bool:
     return any(isinstance(u, str) and substr in u for u in urls)
 
 
 def test_generated_urls_include_rest_for_tags_and_categories():
+    # Ensure tags mode is disabled so URL generation is used
+    _disable_tags()
+    time.sleep(0.3)  # Allow setting to propagate
     # Create a post with two tags
     c = requests.post(
         f"{API_BASE}/post",
@@ -42,6 +55,9 @@ def test_generated_urls_include_rest_for_tags_and_categories():
 
 
 def test_generated_urls_include_rest_for_cpt_and_custom_taxonomy():
+    # Ensure tags mode is disabled so URL generation is used
+    _disable_tags()
+
     # Register CPT and taxonomy
     r = requests.post(f"{API_BASE}/setup-cpt", headers=_host_headers())
     r.raise_for_status()

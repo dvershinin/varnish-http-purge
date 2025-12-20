@@ -55,17 +55,41 @@ def _warm_get(url: str):
     return r
 
 
+def _wait_for_cache_state(url: str, expected: str, max_attempts: int = 10, delay: float = 0.3):
+    """
+    Wait for cache to reach expected state (HIT or MISS).
+    
+    Returns the final cache state after retrying. This helps avoid flakiness
+    caused by purge propagation delays or race conditions.
+    """
+    got = None
+    for _ in range(max_attempts):
+        time.sleep(delay)
+        got = header(head(url), "X-Cache")
+        if got == expected:
+            return got
+    return got
+
+
 @pytest.mark.parametrize(
     "mode,expect_miss",
     [
+        # "old" mode uses trailingslashit() which adds a trailing slash.
+        # When permalink structure is /%postname% (no trailing slash), the
+        # cached URL is /path but old mode purges /path/ - different URLs.
+        # In theory, Varnish should NOT purge since the URLs don't match.
+        # However, accumulated BAN patterns from previous tests can cause
+        # unpredictable behavior, so this test is marked as xfail.
         pytest.param(
             "old",
             False,
             marks=pytest.mark.xfail(
-                reason="Legacy trailing-slash adminbar purge behaviour; kept as documentation of old bug, but behaviour may vary across WP/Varnish versions.",
+                reason="BAN pattern accumulation in Varnish causes unpredictable results when tests run in sequence.",
                 strict=False,
             ),
         ),
+        # "new" mode uses user_trailingslashit() which respects permalink
+        # structure. It purges /path which matches the cached URL.
         ("new", True),
     ],
 )
@@ -78,19 +102,17 @@ def test_adminbar_purge_link_no_trailing_slash(mode, expect_miss):
     data = c.json()
     url = _to_container_url(data["url"]).rstrip('/')
 
+    # Purge cache and wait for MISS state with retries to avoid flakiness
     _purge_all()
-    time.sleep(0.3)
-    assert header(head(url), "X-Cache") == "MISS"
-    # Actively warm with a GET to avoid HEAD-only warm flakiness
+    cache_state = _wait_for_cache_state(url, "MISS", max_attempts=10, delay=0.3)
+    assert cache_state == "MISS", f"Expected MISS after purge_all, got {cache_state}"
+
+    # Actively warm with a GET to ensure cache fill (HEAD may not always populate cache)
     _warm_get(url)
-    # Retry a few times until HIT
-    got = None
-    for _ in range(6):
-        time.sleep(0.25)
-        got = header(head(url), "X-Cache")
-        if got == "HIT":
-            break
-    assert got == "HIT"
+
+    # Wait for cache to be populated (HIT state)
+    cache_state = _wait_for_cache_state(url, "HIT", max_attempts=6, delay=0.25)
+    assert cache_state == "HIT", f"Expected HIT after warming, got {cache_state}"
 
     # Simulate admin bar purge effect server-side, focusing on the URL building logic
     # Simulate the server building links with the site's home_url host
@@ -98,17 +120,14 @@ def test_adminbar_purge_link_no_trailing_slash(mode, expect_miss):
     b = requests.post(f"{API_BASE}/adminbar-purge-exec", json={"page_url": page_url, "mode": mode}, headers=_host_headers())
     b.raise_for_status()
 
-    hit_miss = None
-    for _ in range(10):
-        time.sleep(0.4)
-        hit_miss = header(head(url), "X-Cache")
-        if hit_miss == "MISS":
-            break
-
+    # Wait for cache state after adminbar purge
     if expect_miss:
-        assert hit_miss == "MISS"
+        cache_state = _wait_for_cache_state(url, "MISS", max_attempts=10, delay=0.4)
+        assert cache_state == "MISS", f"Expected MISS after adminbar purge (mode={mode}), got {cache_state}"
     else:
-        assert hit_miss != "MISS"
+        # For "old" mode, we expect the cache to NOT be properly purged (still HIT or inconsistent)
+        cache_state = _wait_for_cache_state(url, "MISS", max_attempts=5, delay=0.4)
+        assert cache_state != "MISS", f"Expected cache to NOT be purged with old mode, but got MISS"
 
 
 def test_adminbar_render_no_errors():

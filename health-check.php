@@ -24,7 +24,16 @@ function vhp_site_status_caching_test() {
 	// Check the debug log.
 	$debug_log     = get_site_option( 'vhp_varnish_debug' );
 	$debug_results = array();
+
+	// Ensure debug_log is a valid array before iterating.
+	if ( ! is_array( $debug_log ) ) {
+		$debug_log = array();
+	}
+
 	foreach ( $debug_log as $site => $results ) {
+		if ( ! is_array( $results ) ) {
+			continue;
+		}
 		foreach ( $results as $item => $content ) {
 			$sitename = ( VarnishPurger::the_home_url() !== $site ) ? 'Site: ' . $site . '<br />' : '';
 			// Log cache not working.
@@ -93,7 +102,7 @@ function vhp_site_status_caching_test() {
 		);
 		$result['description'] .= '<ul>';
 		foreach ( $debug_results as $key => $value ) {
-			$result['description'] .= '<li><strong>' . $key . '</strong>: ' . $value . '</li>';
+			$result['description'] .= '<li><strong>' . esc_html( $key ) . '</strong>: ' . wp_kses_post( $value ) . '</li>';
 		}
 		$result['description'] .= '</ul>';
 	} elseif ( class_exists( 'VarnishPurger' ) && VarnishPurger::is_cron_purging_enabled_static() ) {

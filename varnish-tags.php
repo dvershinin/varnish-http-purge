@@ -48,6 +48,10 @@ class VarnishTags {
 	/**
 	 * Get Tags
 	 *
+	 * Generates cache tags for the current request. Listing pages (blog, home,
+	 * archives) include individual post tags for all displayed posts, enabling
+	 * precise cache invalidation when any of those posts is updated.
+	 *
 	 * @since 5.4.0
 	 * @access protected
 	 * @return array
@@ -58,35 +62,34 @@ class VarnishTags {
 		// Global tags.
 		$tags[] = 'site-' . get_current_blog_id();
 
+		// Front page (static or posts).
 		if ( is_front_page() ) {
 			$tags[] = 'home';
+
+			// If front page shows posts (not a static page), include displayed post tags.
+			if ( 'posts' === get_option( 'show_on_front' ) ) {
+				$tags = array_merge( $tags, $this->get_queried_post_tags() );
+			}
 		}
 
+		// Blog posts page (either front page or separate posts page).
 		if ( is_home() ) {
 			$tags[] = 'blog';
 			$tags[] = 'archive';
+
+			// Include tags for all posts displayed on this page.
+			$tags = array_merge( $tags, $this->get_queried_post_tags() );
 		}
 
 		// Single Post/Page/Custom Post Type.
+		// Only tag with p-{id} to avoid cross-contamination when purging.
+		// Listing pages (archives) carry context tags (pt-{type}, a-{author},
+		// t-{term}) plus individual post tags, so purging p-{id} is sufficient
+		// to invalidate both the single post and any listing showing it.
 		if ( is_singular() ) {
 			global $post;
 			if ( isset( $post->ID ) ) {
 				$tags[] = 'p-' . $post->ID;
-				$tags[] = 'pt-' . $post->post_type;
-
-				// Author.
-				$tags[] = 'a-' . $post->post_author;
-
-				// Terms.
-				$taxonomies = get_object_taxonomies( $post->post_type );
-				foreach ( $taxonomies as $tax ) {
-					$terms = get_the_terms( $post->ID, $tax );
-					if ( $terms && ! is_wp_error( $terms ) ) {
-						foreach ( $terms as $term ) {
-							$tags[] = 't-' . $term->term_id;
-						}
-					}
-				}
 			}
 		}
 
@@ -110,11 +113,17 @@ class VarnishTags {
 					$tags[] = 'pt-' . $pt->name;
 				}
 			}
+
+			// Include tags for all posts displayed on this archive page.
+			$tags = array_merge( $tags, $this->get_queried_post_tags() );
 		}
 
 		// Feeds.
 		if ( is_feed() ) {
 			$tags[] = 'feed';
+
+			// Include tags for posts in this feed.
+			$tags = array_merge( $tags, $this->get_queried_post_tags() );
 		}
 
 		// 404.
@@ -126,7 +135,42 @@ class VarnishTags {
 	}
 
 	/**
+	 * Get Post Tags for Current Query
+	 *
+	 * Returns an array of post ID tags (p-{id}) for all posts in the current
+	 * WP_Query. Used by listing pages to enable precise cache invalidation.
+	 *
+	 * @since 5.6.0
+	 * @access protected
+	 * @return array
+	 */
+	protected function get_queried_post_tags() {
+		$tags = array();
+
+		global $wp_query;
+		if ( ! isset( $wp_query ) || ! is_object( $wp_query ) || empty( $wp_query->posts ) ) {
+			return $tags;
+		}
+
+		foreach ( $wp_query->posts as $queried_post ) {
+			if ( isset( $queried_post->ID ) ) {
+				$tags[] = 'p-' . $queried_post->ID;
+			}
+		}
+
+		return $tags;
+	}
+
+	/**
 	 * Get Tags to Purge for a Post
+	 *
+	 * Returns an array of cache tags that should be purged when a post is
+	 * updated. This method now uses precise tagging instead of blanket context
+	 * tags (home, blog, archive, feed, 404).
+	 *
+	 * Listing pages (blog, home, archives) now include individual post tags
+	 * (p-{id}) when rendered, so purging the post's own tag is sufficient to
+	 * invalidate any listing page that displays it.
 	 *
 	 * @since 5.4.0
 	 * @access public
@@ -142,38 +186,33 @@ class VarnishTags {
 			return $tags;
 		}
 
-		// Global site tag.
-		$tags[] = 'site-' . get_current_blog_id();
-
-		// Post specific tags.
+		// Post specific tag - this is the PRIMARY tag for cache invalidation.
+		// Listing pages (blog, home, archives) now include individual post tags
+		// (p-{id}) for each displayed post, so purging p-{id} is sufficient to
+		// invalidate both the single post AND any listing page showing it.
 		$tags[] = 'p-' . $post->ID;
-		$tags[] = 'pt-' . $post->post_type;
 
-		// Author.
-		$tags[] = 'a-' . $post->post_author;
-
-		// Terms.
-		$taxonomies = get_object_taxonomies( $post->post_type );
-		foreach ( $taxonomies as $tax ) {
-			$terms = get_the_terms( $post->ID, $tax );
-			if ( $terms && ! is_wp_error( $terms ) ) {
-				foreach ( $terms as $term ) {
-					$tags[] = 't-' . $term->term_id;
-				}
-			}
+		// Only purge feed tag for post type 'post' (standard blog posts).
+		// Pages and custom post types typically don't appear in the main feed.
+		if ( 'post' === $post->post_type ) {
+			$tags[] = 'feed';
 		}
 
-		// General Context Tags that should be purged on post update.
-		$tags[] = 'archive';
-		$tags[] = 'feed';
-		$tags[] = 'blog';
-
-		// If it's a page on front, purge home.
-		// Actually, any post update might change home (recent posts).
-		$tags[] = 'home';
-
-		// 404s might be resolved?
-		$tags[] = '404';
+		/**
+		 * Filter the tags to purge for a post.
+		 *
+		 * Allows adding additional tags to purge when a specific post is updated.
+		 * You can add author tags (a-{id}), term tags (t-{id}), or post type
+		 * tags (pt-{type}) if you need to invalidate archives that don't yet
+		 * carry the post's p-{id} tag (e.g., for newly published posts).
+		 *
+		 * @since 5.6.0
+		 *
+		 * @param array   $tags    Array of cache tags to purge.
+		 * @param int     $post_id The post ID being purged.
+		 * @param WP_Post $post    The post object.
+		 */
+		$tags = apply_filters( 'vhp_purge_tags_for_post', $tags, $post_id, $post );
 
 		return array_unique( $tags );
 	}

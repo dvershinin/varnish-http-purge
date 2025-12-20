@@ -25,7 +25,10 @@ sub vcl_recv {
         }
         /* Use BAN to invalidate cache */
         if (req.http.X-Purge-Method == "tags" && req.http.X-Cache-Tags-Pattern) {
-            /* Tag-based purge: match any object whose X-Cache-Tags header matches the pattern */
+            /* Tag-based purge: match any object whose X-Cache-Tags header matches the pattern.
+               The pattern should match complete comma-separated tags, not substrings.
+               Pattern is expected to be a regex that matches complete tag values.
+               E.g., "(^|,)p-123(,|$)" to match "p-123" as a complete tag. */
             ban("obj.http.X-Cache-Tags ~ " + req.http.X-Cache-Tags-Pattern);
             return (synth(200, "Banned by tags pattern"));
         }
