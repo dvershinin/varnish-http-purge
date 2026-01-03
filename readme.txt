@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.5.3
+Stable tag: 5.6.0
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -412,6 +412,9 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.6.0 (2026-01) =
+* New: Added recommendation for Cacheability Pro cache warming plugin on settings page.
 
 = 5.5.3 (2025-12) =
 * New: End-to-End Cache Test in "Check Caching" admin page - a comprehensive 7-step test that verifies both caching AND purging work correctly, without relying on header detection heuristics.

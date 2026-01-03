@@ -898,6 +898,9 @@ sub vcl_recv {
 				<p><?php esc_html_e( 'The cache check page remains available to assist you in determining if pages on your site are properly cached by your server.', 'varnish-http-purge' ); ?></p>
 				<?php
 			}
+
+			// Show Cacheability Pro recommendation when not installed.
+			$this->render_cacheability_pro_recommendation();
 			?>
 		</div>
 		<style>
@@ -2095,6 +2098,144 @@ sub vcl_recv {
 		delete_option( 'vhp_cache_test_new_marker' );
 
 		wp_send_json_success( array( 'cleaned' => true ) );
+	}
+
+	/**
+	 * Render the Cacheability Pro recommendation section.
+	 *
+	 * Shows a recommendation card for Cacheability Pro plugin when it is not
+	 * already installed. This provides users with information about cache
+	 * warming, conditional GET, and ESI features that complement Proxy Cache Purge.
+	 *
+	 * @since 5.6.0
+	 */
+	public function render_cacheability_pro_recommendation() {
+		// Don't show if Cacheability Pro is already installed.
+		if ( class_exists( 'Cacheability_Pro' ) ) {
+			return;
+		}
+
+		// Don't show if free Cacheability is installed (has its own upsell).
+		if ( class_exists( 'Cacheability' ) ) {
+			return;
+		}
+
+		$pro_url = 'https://www.getpagespeed.com/cacheability-pro?ref=vhp';
+
+		?>
+		<div class="vhp-recommendation-card">
+			<div class="vhp-recommendation-header">
+				<span class="vhp-recommendation-icon">🔥</span>
+				<h3><?php esc_html_e( 'Enhance Your Cache Stack', 'varnish-http-purge' ); ?></h3>
+			</div>
+			<p class="vhp-recommendation-intro">
+				<?php esc_html_e( 'Cacheability Pro adds cache warming, conditional GET (304), and ESI support — perfect companions to Proxy Cache Purge.', 'varnish-http-purge' ); ?>
+			</p>
+			<ul class="vhp-recommendation-features">
+				<li>
+					<span class="dashicons dashicons-yes-alt"></span>
+					<?php esc_html_e( 'Cache warming after purge (keeps cache hot)', 'varnish-http-purge' ); ?>
+				</li>
+				<li>
+					<span class="dashicons dashicons-yes-alt"></span>
+					<?php esc_html_e( 'Conditional GET/304 responses (bandwidth savings)', 'varnish-http-purge' ); ?>
+				</li>
+				<li>
+					<span class="dashicons dashicons-yes-alt"></span>
+					<?php esc_html_e( 'ESI for dynamic nonces (cache forms & AJAX)', 'varnish-http-purge' ); ?>
+				</li>
+				<li>
+					<span class="dashicons dashicons-yes-alt"></span>
+					<?php esc_html_e( 'Per-page-type Cache-Control policies', 'varnish-http-purge' ); ?>
+				</li>
+			</ul>
+			<p class="vhp-recommendation-cta">
+				<a href="<?php echo esc_url( $pro_url ); ?>" class="button button-primary" target="_blank" rel="noopener">
+					<?php esc_html_e( 'Learn More About Cacheability Pro', 'varnish-http-purge' ); ?>
+					<span class="dashicons dashicons-external" style="margin-top: 3px;"></span>
+				</a>
+				<span class="vhp-recommendation-badge"><?php esc_html_e( 'Premium Plugin', 'varnish-http-purge' ); ?></span>
+			</p>
+		</div>
+		<style>
+		.vhp-recommendation-card {
+			background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+			border: 1px solid #c3c4c7;
+			border-left: 4px solid #2271b1;
+			border-radius: 4px;
+			padding: 20px 24px;
+			margin-top: 30px;
+		}
+		.vhp-recommendation-header {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			margin-bottom: 12px;
+		}
+		.vhp-recommendation-icon {
+			font-size: 24px;
+		}
+		.vhp-recommendation-header h3 {
+			margin: 0;
+			font-size: 16px;
+			font-weight: 600;
+			color: #1d2327;
+		}
+		.vhp-recommendation-intro {
+			color: #50575e;
+			margin: 0 0 16px;
+			font-size: 14px;
+		}
+		.vhp-recommendation-features {
+			margin: 0 0 20px;
+			padding: 0;
+			list-style: none;
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+			gap: 8px;
+		}
+		.vhp-recommendation-features li {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			color: #1d2327;
+			font-size: 13px;
+		}
+		.vhp-recommendation-features .dashicons {
+			color: #00a32a;
+			font-size: 16px;
+			width: 16px;
+			height: 16px;
+		}
+		.vhp-recommendation-cta {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			flex-wrap: wrap;
+			margin: 0;
+		}
+		.vhp-recommendation-cta .button {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+		}
+		.vhp-recommendation-cta .dashicons-external {
+			font-size: 14px;
+			width: 14px;
+			height: 14px;
+		}
+		.vhp-recommendation-badge {
+			background: #f0f0f1;
+			color: #50575e;
+			font-size: 11px;
+			font-weight: 500;
+			padding: 4px 10px;
+			border-radius: 3px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+		</style>
+		<?php
 	}
 }
 
