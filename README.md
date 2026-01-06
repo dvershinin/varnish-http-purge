@@ -16,3 +16,4 @@ Proxy Cache Purge is currently maintained by [GetPageSpeed](https://www.getpages
 * [Varnish VCLs](https://github.com/dvershinin/varnish-http-purge/wiki/Sample-VCLs)
 * [GetPageSpeed NGINX Extras](https://nginx-extras.getpagespeed.com/)
 * [NGINX cache-purge module](https://nginx-extras.getpagespeed.com/modules/cache-purge/)
+* [CloudLinux EA4 Setup Guide](https://nginx-extras.getpagespeed.com/guides/cpanel-cache-purge/) - for cPanel users
