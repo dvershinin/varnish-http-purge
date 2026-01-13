@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.6.0
+Stable tag: 5.6.1
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -282,13 +282,13 @@ Due to the damage this can cause a site, access is limited to admins only. In th
 
 = Why do I still see cached content in development mode? =
 
-While development mode is on, your server will continue to cache content but the plugin will tell WordPress not to use the cached content. That means files that exist outside of WordPress (like CSS or images) _may_ serve cached content. 
+While development mode is on, your server will continue to cache content but the plugin will tell WordPress not to use the cached content. That means files that exist outside of WordPress (like CSS or images) _may_ serve cached content.
 
 The plugin does its best to add a No Cache parameter to javascript and CSS, however if a theme or plugin _doesn't_ use proper WordPress enqueues, then their cached content will be shown.
 
 = Why can I still flush cache while in development mode? =
 
-Because the server is still caching content. 
+Because the server is still caching content.
 
 The plugin provides a way to flush the cache for those pages, as well as anything not included in WordPress, for your convenience.
 
@@ -314,7 +314,7 @@ If you want to use WP-CLI, you can set an option in the database. This will not 
 
 = Why are my posts timing out/not showing when I'm using CloudFlare? =
 
-This is usually related to CloudFlare's APO setup. 
+This is usually related to CloudFlare's APO setup.
 
 I have an open ticket with CloudFlare trying to debug this, but basically whatever they're doing with APO doesn't 'like' the flush command and times out (or crashes).
 
@@ -340,7 +340,7 @@ So far this plugin has been reported to successfully function on Varnish v2 thro
 
 = Does this work with NGINX caching? =
 
-It can, if you've configured NGINX caching to respect the curl PURGE request. 
+It can, if you've configured NGINX caching to respect the curl PURGE request.
 
 If this doesn't work, try setting your Varnish IP to `localhost` as NGINX requires a service control installed for the IP address to work.
 
