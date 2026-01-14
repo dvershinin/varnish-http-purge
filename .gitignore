@@ -13,3 +13,7 @@ wp-content/backups/
 sitemap.xml.gz
 .idea/
 __pycache__
+.cursor/
+.vscode/
+.claude/
+CLAUDE.md

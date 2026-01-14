@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.6.1
+ * Version: 5.6.2
  * Requires at least: 5.0
  * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
@@ -191,6 +191,12 @@ class VarnishPurger {
 			if ( '' === get_site_option( 'permalink_structure' ) ) {
 				add_action( 'admin_notices', array( $this, 'require_pretty_permalinks_notice' ) );
 			}
+
+			// Recommendation: Cacheability Pro plugin.
+			add_action( 'admin_notices', array( $this, 'cacheability_pro_notice' ) );
+
+			// AJAX handler for dismissing Cacheability Pro notice.
+			add_action( 'wp_ajax_vhp_dismiss_cacheability_notice', array( $this, 'ajax_dismiss_cacheability_notice' ) );
 		}
 	}
 
@@ -691,6 +697,88 @@ class VarnishPurger {
 		if ( isset( $message ) ) {
 			echo '<div class="notice notice-warning"><p>' . wp_kses_post( $message ) . '</p></div>';
 		}
+	}
+
+	/**
+	 * Cacheability Pro Recommendation Notice
+	 *
+	 * Shows a dismissable admin notice recommending Cacheability Pro plugin
+	 * for users who don't have it installed.
+	 *
+	 * @since 5.6.2
+	 */
+	public function cacheability_pro_notice() {
+		// Don't show if Cacheability Pro is already installed.
+		if ( class_exists( 'Cacheability_Pro' ) ) {
+			return;
+		}
+
+		// Don't show if free Cacheability is installed (has its own upsell).
+		if ( class_exists( 'Cacheability' ) ) {
+			return;
+		}
+
+		// Don't show if user dismissed this notice.
+		if ( get_user_meta( get_current_user_id(), 'vhp_dismissed_cacheability_notice', true ) ) {
+			return;
+		}
+
+		// Only show on relevant pages (dashboard, plugins, or VHP settings).
+		$screen = get_current_screen();
+		if ( ! $screen ) {
+			return;
+		}
+
+		$allowed_screens = array( 'dashboard', 'plugins', 'toplevel_page_varnish-page' );
+		if ( ! in_array( $screen->id, $allowed_screens, true ) ) {
+			return;
+		}
+
+		$pro_url     = 'https://www.getpagespeed.com/cacheability-pro?ref=vhp';
+		$dismiss_url = wp_nonce_url(
+			add_query_arg( 'vhp_dismiss_cacheability_notice', '1' ),
+			'vhp_dismiss_cacheability_notice'
+		);
+
+		?>
+		<div class="notice notice-info is-dismissible vhp-cacheability-notice">
+			<p>
+				<strong><?php esc_html_e( '🔥 Keep your cache warm!', 'varnish-http-purge' ); ?></strong>
+				<?php esc_html_e( 'Proxy Cache Purge clears your cache — but visitors may hit a slow, uncached page.', 'varnish-http-purge' ); ?>
+				<strong><?php esc_html_e( 'Cacheability Pro', 'varnish-http-purge' ); ?></strong>
+				<?php esc_html_e( 'automatically warms the cache after purge, so every visitor gets a fast response.', 'varnish-http-purge' ); ?>
+				<a href="<?php echo esc_url( $pro_url ); ?>" target="_blank" rel="noopener" class="button button-primary" style="margin-left: 10px;">
+					<?php esc_html_e( 'Learn More', 'varnish-http-purge' ); ?>
+				</a>
+			</p>
+		</div>
+		<script>
+		jQuery(document).ready(function($) {
+			$('.vhp-cacheability-notice').on('click', '.notice-dismiss', function() {
+				$.post(ajaxurl, {
+					action: 'vhp_dismiss_cacheability_notice',
+					nonce: '<?php echo esc_js( wp_create_nonce( 'vhp_dismiss_cacheability_notice' ) ); ?>'
+				});
+			});
+		});
+		</script>
+		<?php
+	}
+
+	/**
+	 * AJAX handler for dismissing Cacheability Pro notice.
+	 *
+	 * @since 5.6.2
+	 */
+	public function ajax_dismiss_cacheability_notice() {
+		check_ajax_referer( 'vhp_dismiss_cacheability_notice', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error();
+		}
+
+		update_user_meta( get_current_user_id(), 'vhp_dismissed_cacheability_notice', true );
+		wp_send_json_success();
 	}
 
 	/**
