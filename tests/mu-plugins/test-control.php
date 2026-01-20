@@ -1081,6 +1081,87 @@ add_action( 'rest_api_init', function() {
     ) );
 } );
 
+// Test endpoint to simulate manual purge actions (admin bar clicks).
+// This exercises the execute_purge() GET param handling to verify manual purges
+// are always immediate regardless of cron mode.
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/simulate-manual-purge', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishPurger' ) ) {
+                return new WP_Error( 'no_purger', 'VarnishPurger class not available', array( 'status' => 500 ) );
+            }
+
+            $type = $req->get_param( 'type' ); // 'all' or 'url'
+            $url  = $req->get_param( 'url' );
+
+            // Set up as admin user for nonce validation.
+            $admin = get_user_by( 'login', 'admin' );
+            if ( $admin ) {
+                wp_set_current_user( $admin->ID );
+            }
+
+            // Capture any purge requests.
+            $captured = array();
+            $capture_callback = function( $headers ) use ( &$captured ) {
+                $captured[] = $headers;
+                return $headers;
+            };
+            add_filter( 'varnish_http_purge_headers', $capture_callback, 9999 );
+
+            // Create a VarnishPurger instance.
+            $vp = new VarnishPurger();
+
+            // Simulate the GET parameters and nonce that execute_purge() checks.
+            // We create the nonce and set up $_GET to trigger the manual purge path.
+            if ( 'all' === $type ) {
+                // Simulate vhp_flush_all click.
+                $nonce = wp_create_nonce( 'vhp-flush-all' );
+                $_GET['vhp_flush_all'] = '1';
+                $_GET['_wpnonce']      = $nonce;
+                $_REQUEST['_wpnonce']  = $nonce;
+            } elseif ( 'url' === $type && ! empty( $url ) ) {
+                // Simulate vhp_flush_do=<url> click.
+                $nonce = wp_create_nonce( 'vhp-flush-do' );
+                $_GET['vhp_flush_do'] = $url;
+                $_GET['_wpnonce']     = $nonce;
+                $_REQUEST['_wpnonce'] = $nonce;
+            } else {
+                return new WP_Error( 'bad_type', 'type must be "all" or "url" (with url param)', array( 'status' => 400 ) );
+            }
+
+            // Call execute_purge() which checks $_GET and performs the purge.
+            $vp->execute_purge();
+
+            // Clean up GET params.
+            unset( $_GET['vhp_flush_all'], $_GET['vhp_flush_do'], $_GET['_wpnonce'] );
+            unset( $_REQUEST['_wpnonce'] );
+
+            remove_filter( 'varnish_http_purge_headers', $capture_callback, 9999 );
+
+            // Check the queue status to verify purge was immediate (not queued).
+            $queue = get_site_option( VarnishPurger::PURGE_QUEUE_OPTION, array() );
+
+            // Normalize queue structure for consistent JSON output.
+            $queue_normalized = array(
+                'full' => ! empty( $queue['full'] ),
+                'urls' => isset( $queue['urls'] ) && is_array( $queue['urls'] ) ? array_values( $queue['urls'] ) : array(),
+                'tags' => isset( $queue['tags'] ) && is_array( $queue['tags'] ) ? array_values( $queue['tags'] ) : array(),
+            );
+
+            return array(
+                'ok'               => true,
+                'type'             => $type,
+                'purge_captured'   => count( $captured ) > 0,
+                'captured_count'   => count( $captured ),
+                'captured_headers' => $captured,
+                'queue_after'      => $queue_normalized,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
 // Test endpoint to exercise the admin bar rendering (varnish_rightnow_adminbar).
 // This ensures the code path with get_current_blog_id() and permission checks runs without error.
 add_action( 'rest_api_init', function() {

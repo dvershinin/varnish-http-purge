@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.6.2
+ * Version: 5.6.3
  * Requires at least: 5.0
  * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
@@ -1127,18 +1127,13 @@ class VarnishPurger {
 			}
 		} elseif ( isset( $_GET ) ) {
 			// Otherwise, if we've passed a GET call...
+			// Manual purge actions always execute immediately regardless of cron
+			// mode. Cron-based queuing only benefits batch operations (automatic
+			// purges from post saves, etc.). Single-request manual purges have no
+			// batching benefit and users expect immediate results.
 			if ( isset( $_GET['vhp_flush_all'] ) && check_admin_referer( 'vhp-flush-all' ) ) {
-				// Flush Cache recursive.
-				if ( $cron_mode ) {
-					$bypass = apply_filters( 'vhp_purge_bypass_cron_for_request', false, 'manual_all', $this->the_home_url() );
-					if ( $bypass ) {
-						$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
-					} else {
-						$this->enqueue_full_purge();
-					}
-				} else {
-					$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
-				}
+				// Flush Cache recursive (single regex request - always immediate).
+				$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
 			} elseif ( isset( $_GET['vhp_flush_do'] ) && check_admin_referer( 'vhp-flush-do' ) ) {
 				if ( 'object' === $_GET['vhp_flush_do'] ) {
 					// Flush Object Cache (with a double check).
@@ -1146,35 +1141,16 @@ class VarnishPurger {
 						wp_cache_flush();
 					}
 				} elseif ( 'all' === $_GET['vhp_flush_do'] ) {
-					// Flush Cache recursive.
-					if ( $cron_mode ) {
-						$bypass = apply_filters( 'vhp_purge_bypass_cron_for_request', false, 'manual_all', $this->the_home_url() );
-						if ( $bypass ) {
-							$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
-						} else {
-							$this->enqueue_full_purge();
-						}
-					} else {
-						$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
-					}
+					// Flush Cache recursive (single regex request - always immediate).
+					$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
 				} else {
-					// Flush the URL we're on.
+					// Flush the URL we're on (single request - always immediate).
 					$p = wp_parse_url( esc_url_raw( wp_unslash( $_GET['vhp_flush_do'] ) ) );
 					if ( ! isset( $p['host'] ) ) {
 						return;
 					}
 					$target_url = esc_url_raw( wp_unslash( $_GET['vhp_flush_do'] ) );
-
-					if ( $cron_mode ) {
-						$bypass = apply_filters( 'vhp_purge_bypass_cron_for_request', false, 'manual_url', $target_url );
-						if ( $bypass ) {
-							$this->purge_url( $target_url );
-						} else {
-							$this->enqueue_urls( array( $target_url ) );
-						}
-					} else {
-						$this->purge_url( $target_url );
-					}
+					$this->purge_url( $target_url );
 				}
 			}
 		}
