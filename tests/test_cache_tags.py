@@ -26,6 +26,18 @@ def ensure_clean_state():
     resp = requests.post(f"{API_BASE}/reset-options", json={}, timeout=10)
     resp.raise_for_status()
 
+    # Purge Varnish cache to ensure no stale responses with old header state.
+    requests.post(f"{API_BASE}/purge", json={"all": True}, timeout=10)
+
+    # Verify tags mode is disabled by polling until we see no X-Cache-Tags header.
+    # This confirms the reset took effect across all PHP-FPM workers.
+    wait_for_option_effect(
+        url=PROBE_URL,
+        header_name="X-Cache-Tags",
+        expected_present=False,
+        timeout=10.0,
+    )
+
     yield
 
     # Clean up after the test by disabling tags mode.

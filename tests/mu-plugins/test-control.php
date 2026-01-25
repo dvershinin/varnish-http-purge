@@ -1193,6 +1193,17 @@ add_action( 'rest_api_init', function() {
             // Ensure cron mode is off by default for predictable test behavior.
             update_site_option( 'vhp_varnish_force_cron_mode', 'off' );
 
+            // Clear WordPress object cache to ensure all PHP-FPM workers see the
+            // updated option values on their next request. This is critical for
+            // test isolation - without this, workers may serve responses with
+            // stale option values from previous tests.
+            wp_cache_delete( 'alloptions', 'options' );
+            wp_cache_delete( 'notoptions', 'options' );
+            foreach ( $options_to_delete as $opt ) {
+                wp_cache_delete( $opt, 'options' );
+                wp_cache_delete( $opt, 'site-options' );
+            }
+
             return array(
                 'ok'       => true,
                 'reset'    => $options_to_delete,
