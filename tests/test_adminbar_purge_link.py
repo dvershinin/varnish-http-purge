@@ -75,17 +75,16 @@ def _wait_for_cache_state(url: str, expected: str, max_attempts: int = DEFAULT_P
 @pytest.mark.parametrize(
     "mode,expect_miss",
     [
-        # "old" mode uses trailingslashit() which adds a trailing slash.
+        # "old" mode uses trailingslashit() which always adds a trailing slash.
         # When permalink structure is /%postname% (no trailing slash), the
         # cached URL is /path but old mode purges /path/ - different URLs.
-        # In theory, Varnish should NOT purge since the URLs don't match.
-        # However, accumulated BAN patterns from previous tests can cause
-        # unpredictable behavior, so this test is marked as xfail.
+        # This is a known bug fixed in PR #10 by using user_trailingslashit().
+        # See: https://github.com/dvershinin/varnish-http-purge/pull/10
         pytest.param(
             "old",
             False,
             marks=pytest.mark.xfail(
-                reason="BAN pattern accumulation in Varnish causes unpredictable results when tests run in sequence.",
+                reason="Old mode uses trailingslashit() which ignores permalink structure (PR #10)",
                 strict=False,
             ),
         ),
