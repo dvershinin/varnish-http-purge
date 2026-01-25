@@ -32,3 +32,6 @@ if ( ! defined( 'VHP_DEVMODE' ) ) {
 if ( ! defined( 'VHP_VARNISH_TAGS' ) ) {
 	define( 'VHP_VARNISH_TAGS', false );
 }
+if ( ! defined( 'VHP_DISABLE_CRON_PURGING' ) ) {
+	define( 'VHP_DISABLE_CRON_PURGING', false );
+}

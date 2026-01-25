@@ -1,16 +1,37 @@
 import time
 import requests
+import pytest
 from urllib.parse import urlparse, urlunparse
 
 from conftest import (
     API_BASE, WP_URL, get_headers, fresh_post, wait_for_option_effect,
     wait_for_cache_hit, wait_for_cache_miss, assert_cache_hit, assert_cache_miss,
+    reset_plugin_options,
 )
 
 # Probe URL for verifying tags mode state.
 # Use the home page which always gets X-Cache-Tags when tags mode is enabled.
 # The home page gets at least the "home" and "site-{id}" tags.
 PROBE_URL = f"{WP_URL}/"
+
+
+@pytest.fixture(autouse=True)
+def ensure_clean_state():
+    """Reset plugin options before each test to ensure clean state.
+
+    This prevents state leakage from previous tests that might have enabled
+    tags mode or cron mode without properly cleaning up.
+    """
+    # Reset all plugin options to defaults before the test.
+    resp = requests.post(f"{API_BASE}/reset-options", json={}, timeout=10)
+    resp.raise_for_status()
+
+    yield
+
+    # Clean up after the test by disabling tags mode.
+    # This is defensive - tests should do this themselves, but we ensure it here.
+    requests.post(f"{API_BASE}/tags-mode", json={"enabled": False}, timeout=10)
+    requests.post(f"{API_BASE}/cron-mode", json={"mode": "force_off"}, timeout=10)
 
 
 def _head(url: str):
@@ -23,8 +44,12 @@ def _header(resp, name: str) -> str:
     return resp.headers.get(name)
 
 
-def _enable_tags(enabled: bool, timeout: float = 10.0):
-    """Enable or disable tags mode and wait until Varnish reflects the change."""
+def _enable_tags(enabled: bool, timeout: float = 15.0):
+    """Enable or disable tags mode and wait until Varnish reflects the change.
+
+    Uses a longer default timeout (15s) to handle race conditions when running
+    in the full test suite where PHP-FPM workers may have stale object cache.
+    """
     r = requests.post(
         f"{API_BASE}/tags-mode",
         json={"enabled": bool(enabled)},

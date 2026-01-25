@@ -10,6 +10,14 @@ until docker compose exec -T wordpress curl -sSf http://localhost:8080/wp-admin/
   sleep 3
 done
 
+# Sanity check: verify PHP syntax of test mu-plugin before running tests.
+# This catches syntax errors early instead of getting cryptic 500 errors.
+if ! docker compose exec -T wordpress php -l /var/www/html/wp-content/mu-plugins/test-control.php >/dev/null 2>&1; then
+  echo "ERROR: PHP syntax error in test-control.php:"
+  docker compose exec -T wordpress php -l /var/www/html/wp-content/mu-plugins/test-control.php
+  exit 1
+fi
+
 # Reload Apache to clear OPcache and pick up any PHP file changes.
 # This ensures tests run against the latest plugin code.
 docker compose exec -T wordpress apachectl graceful 2>/dev/null || true

@@ -144,24 +144,24 @@ tests:
 	# Uses -x by default (stop on first failure) for fast iteration
 	$(MAKE) up && \
 	cd tests && bash setup.sh && \
-	docker compose run --rm tester -q
+	docker compose run --rm tester -c tests/pytest.ini -q
 
 pytest:
 	# Run pytest with default settings (-x from pytest.ini)
-	cd tests && docker compose run --rm tester -q
+	cd tests && docker compose run --rm tester -c tests/pytest.ini -q
 
 pytest-all:
 	# Run ALL tests, don't stop on first failure
-	cd tests && docker compose run --rm tester -q --no-header -p no:cacheprovider -o "addopts=-ra"
+	cd tests && docker compose run --rm tester -c tests/pytest.ini -q --no-header -p no:cacheprovider -o "addopts=-ra"
 
 pytest-one:
 	# Run a single test file or pattern. Usage: make pytest-one TEST=test_cache_basic
 	@if [ -z "$(TEST)" ]; then echo "Usage: make pytest-one TEST=test_name"; exit 1; fi
-	cd tests && docker compose run --rm tester -v -k "$(TEST)"
+	cd tests && docker compose run --rm tester -c tests/pytest.ini -v -k "$(TEST)"
 
 pytest-v:
 	# Run tests with verbose output (still stops on first failure)
-	cd tests && docker compose run --rm tester -v
+	cd tests && docker compose run --rm tester -c tests/pytest.ini -v
 
 teststack:
 	# Use test-local docker-compose.yml under tests

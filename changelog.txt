@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.6.4 =
+* January 2026
+* New: Added `VHP_DISABLE_CRON_PURGING` wp-config.php constant to force-disable background purging even when `DISABLE_WP_CRON` is enabled. Useful for environments with many low-traffic sites that use external cron but prefer immediate cache purges.
+
 = 5.6.3 =
 * January 2026
 * Fix: Manual cache purge actions ("Purge Cache All Pages" and "Purge This Page" in admin bar) now execute immediately regardless of WP-Cron mode settings. Previously, when DISABLE_WP_CRON was true, even manual purges were queued for later cron execution, which was confusing for administrators expecting immediate action.

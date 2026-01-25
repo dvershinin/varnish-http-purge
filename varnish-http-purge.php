@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.6.3
+ * Version: 5.6.4
  * Requires at least: 5.0
  * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
@@ -116,6 +116,7 @@ class VarnishPurger {
 		defined( 'VHP_DOMAINS' ) || define( 'VHP_DOMAINS', false );
 		defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) || define( 'VHP_VARNISH_EXTRA_PURGE_HEADER', false );
 		defined( 'VHP_EXCLUDED_POST_STATUSES' ) || define( 'VHP_EXCLUDED_POST_STATUSES', false );
+		defined( 'VHP_DISABLE_CRON_PURGING' ) || define( 'VHP_DISABLE_CRON_PURGING', false );
 
 		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( &$this, 'settings_link' ) );
 
@@ -352,6 +353,11 @@ class VarnishPurger {
 	 * @return bool
 	 */
 	public static function is_cron_purging_enabled_static() {
+		// Allow users to force-disable cron purging via wp-config.php constant.
+		if ( defined( 'VHP_DISABLE_CRON_PURGING' ) && VHP_DISABLE_CRON_PURGING ) {
+			return false;
+		}
+
 		$enabled = ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON );
 
 		/**

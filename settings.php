@@ -845,6 +845,17 @@ sub vcl_recv {
 					</div>
 					<?php
 				}
+				// Show notice when cron purging is explicitly disabled via constant.
+				if ( defined( 'VHP_DISABLE_CRON_PURGING' ) && VHP_DISABLE_CRON_PURGING ) {
+					?>
+					<div class="notice notice-info" style="margin-top:1em;">
+						<p><strong><?php esc_html_e( 'Background purging disabled', 'varnish-http-purge' ); ?></strong></p>
+						<p>
+							<?php esc_html_e( 'The VHP_DISABLE_CRON_PURGING constant is set to true in your wp-config.php. Cache purges will execute immediately instead of being queued for background processing.', 'varnish-http-purge' ); ?>
+						</p>
+					</div>
+					<?php
+				}
 				?>
 				<form action="options.php" method="POST" >
 				<?php

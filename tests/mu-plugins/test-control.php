@@ -202,9 +202,22 @@ add_action( 'rest_api_init', function() {
         'callback' => function( WP_REST_Request $req ) {
             $enabled = (bool) $req->get_param( 'enabled' );
             update_site_option( 'vhp_varnish_use_tags', $enabled ? 1 : 0 );
+
+            // Force clear WordPress object cache to ensure all PHP-FPM workers
+            // see the updated option value on their next request.
+            // This is necessary because workers may have cached the old value
+            // in their alloptions cache from previous requests.
+            wp_cache_delete( 'alloptions', 'options' );
+            wp_cache_delete( 'vhp_varnish_use_tags', 'options' );
+            wp_cache_delete( 'vhp_varnish_use_tags', 'site-options' );
+
+            // Verify the option was actually set by reading it back.
+            $actual = get_site_option( 'vhp_varnish_use_tags' );
+
             return array(
                 'ok'      => true,
                 'enabled' => $enabled,
+                'actual'  => $actual,
             );
         },
         'permission_callback' => '__return_true',

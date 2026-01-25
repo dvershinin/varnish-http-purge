@@ -4,7 +4,10 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
-from conftest import API_BASE, WP_URL, WP_BACKEND_URL, purge_all_and_wait, wait_for_cache_hit
+from conftest import (
+    API_BASE, WP_URL, WP_BACKEND_URL, purge_all_and_wait,
+    wait_for_cache_hit, wait_for_cache_miss,
+)
 
 
 def _backend_get(path: str):
@@ -96,16 +99,18 @@ def test_scheduled_post_publishes_and_purges_via_cron():
     assert status == "publish", "Expected scheduled post to transition to publish via cron"
 
     # After publish, the home page cache should be purged.
-    # First request should be MISS (cache was invalidated).
-    r2 = requests.get(home, timeout=10, allow_redirects=False)
-    assert r2.headers.get("X-Cache") == "MISS", (
+    # Use wait_for_cache_miss to handle purge propagation delays.
+    # The purge is triggered by the transition_post_status hook when the post
+    # transitions from 'future' to 'publish'.
+    state = wait_for_cache_miss(home, max_attempts=30, delay=0.25)
+    assert state == "MISS", (
         "Home page should be MISS after scheduled post publish - "
-        "cache should have been purged by transition_post_status hook"
+        f"cache should have been purged by transition_post_status hook, got {state}"
     )
 
     # Second request should be HIT (freshly cached).
-    r3 = requests.get(home, timeout=10, allow_redirects=False)
-    assert r3.headers.get("X-Cache") == "HIT", "Home page should be HIT after being re-cached"
+    state = wait_for_cache_hit(home)
+    assert state == "HIT", f"Home page should be HIT after being re-cached, got {state}"
 
     # Verify the published post's canonical URL is accessible via Varnish.
     # Get the canonical URL from the REST API.

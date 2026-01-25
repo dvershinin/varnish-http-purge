@@ -453,6 +453,10 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 							'value' => VarnishPurger::is_cron_purging_enabled_static() ? 'yes' : 'no',
 						),
 						array(
+							'field' => 'cron_disabled_by_constant',
+							'value' => ( defined( 'VHP_DISABLE_CRON_PURGING' ) && VHP_DISABLE_CRON_PURGING ) ? 'yes' : 'no',
+						),
+						array(
 							'field' => 'full_purge_queued',
 							'value' => $full ? 'yes' : 'no',
 						),

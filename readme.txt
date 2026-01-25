@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.6.3
+Stable tag: 5.6.4
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -99,6 +99,16 @@ If you can tolerate slightly longer delays, every 2-5 minutes is also acceptable
 <strong>Note:</strong> Scheduled posts are handled specially. When a scheduled post is published via WP-Cron, the cache is purged synchronously within the same cron run, ensuring immediate cache invalidation without waiting for the next cron execution.
 
 For detailed instructions on setting up a proper Linux-based WordPress cron, see: <a href="https://www.getpagespeed.com/web-apps/wordpress/wordpress-cron-optimization">WordPress Cron Optimization</a>.
+
+<strong>Disabling Background Purging</strong>
+
+If you have `DISABLE_WP_CRON` defined but do not want background purging (for example, on low-traffic sites where immediate purges are preferred), you can force-disable cron-based purging by adding this to your `wp-config.php`:
+
+<code>
+define( 'VHP_DISABLE_CRON_PURGING', true );
+</code>
+
+With this constant set, all cache purges will execute immediately during the request, regardless of the `DISABLE_WP_CRON` setting.
 
 == WP-CLI ==
 
@@ -448,6 +458,9 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.6.4 (2026-01) =
+* New: Added `VHP_DISABLE_CRON_PURGING` constant to force-disable background purging even when `DISABLE_WP_CRON` is enabled. Useful for low-traffic sites that use external cron but prefer immediate cache purges.
 
 = 5.6.3 (2026-01) =
 * Fix: Manual cache purge actions now execute immediately regardless of WP-Cron mode. Previously, "Purge Cache All Pages" and "Purge This Page" were queued when DISABLE_WP_CRON was enabled.

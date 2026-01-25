@@ -234,10 +234,18 @@ def wait_for_option_effect(url: str, header_name: str, expected_present: bool,
         RuntimeError: If the expected state is not observed within the timeout.
     """
     # Initial delay to let database transaction commit and any caches invalidate.
-    time.sleep(0.3)
+    # Use a longer delay (0.5s) to handle slow DB writes under load.
+    time.sleep(0.5)
 
     # Initial purge to evict any cached response with old state.
     requests.post(f"{API_BASE}/purge", json={"url": url})
+
+    # Track last response details for better error messages on timeout.
+    last_status = None
+    last_cache = None
+    last_has_header = None
+    miss_count = 0
+    hit_count = 0
 
     start = time.time()
     while time.time() - start < timeout:
@@ -249,22 +257,31 @@ def wait_for_option_effect(url: str, header_name: str, expected_present: bool,
         time.sleep(0.2)
 
         r = requests.head(url, allow_redirects=False)
+        last_status = r.status_code
+        last_cache = r.headers.get("X-Cache")
+        last_has_header = header_name in r.headers
+
         # Accept 200 or 301/302 (home may redirect).
         if r.status_code not in (200, 301, 302):
             continue
 
         # We need a MISS to see the fresh backend response.
-        if r.headers.get("X-Cache") != "MISS":
+        if last_cache != "MISS":
+            hit_count += 1
             continue
 
-        has_header = header_name in r.headers
-        if expected_present and has_header:
+        miss_count += 1
+        if expected_present and last_has_header:
             return
-        if not expected_present and not has_header:
+        if not expected_present and not last_has_header:
             return
 
     state_desc = "present" if expected_present else "absent"
-    raise RuntimeError(f"Timeout waiting for {header_name} to be {state_desc} on {url}")
+    raise RuntimeError(
+        f"Timeout waiting for {header_name} to be {state_desc} on {url}. "
+        f"Last: status={last_status}, X-Cache={last_cache}, "
+        f"header_present={last_has_header}, hits={hit_count}, misses={miss_count}"
+    )
 
 
 def purge_all_and_wait(max_attempts: int = 20, delay: float = 0.25):
