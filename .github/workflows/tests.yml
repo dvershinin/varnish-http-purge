@@ -123,12 +123,12 @@ jobs:
           docker compose -p vhp exec -T wordpress getent hosts varnish || (echo "DNS for varnish not available"; docker compose -p vhp logs varnish | tail -n 200 || true; exit 1)
           # Show resolver state for debugging if needed
           docker compose -p vhp exec -T wordpress sh -lc 'echo "== /etc/resolv.conf =="; cat /etc/resolv.conf; echo "== nsswitch =="; cat /etc/nsswitch.conf || true; getent hosts varnish || true'
-          # Then HTTP probe
+          # Then HTTP probe (Varnish listens on 6081)
           for i in {1..60}; do
-            if docker compose -p vhp exec -T wordpress bash -lc "curl -fsS http://varnish/ >/dev/null"; then
+            if docker compose -p vhp exec -T wordpress bash -lc "curl -fsS http://varnish:6081/ >/dev/null"; then
               echo "Varnish reachable"; break; fi; sleep 2; done
           # If HTTP still not ready, dump varnish logs and fail
-          docker compose -p vhp exec -T wordpress bash -lc "curl -fsS http://varnish/ >/dev/null" || (echo "HTTP to varnish not ready"; docker compose -p vhp logs varnish | tail -n 200 || true; exit 1)
+          docker compose -p vhp exec -T wordpress bash -lc "curl -fsS http://varnish:6081/ >/dev/null" || (echo "HTTP to varnish not ready"; docker compose -p vhp logs varnish | tail -n 200 || true; exit 1)
           docker compose -p vhp ps | cat
 
       - name: WP Setup
