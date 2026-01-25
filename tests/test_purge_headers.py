@@ -1,6 +1,13 @@
+import pytest
 import requests
 
-from conftest import API_BASE, _host_headers
+from conftest import API_BASE
+
+
+@pytest.fixture(autouse=True)
+def clean_purge_headers(reset_plugin_options):
+    """Ensure purge header options are reset before and after each test."""
+    pass
 
 
 def _set_purge_header(name: str | None = None, value: str | None = None) -> dict:
@@ -14,7 +21,7 @@ def _set_purge_header(name: str | None = None, value: str | None = None) -> dict
         payload["name"] = name
     if value is not None:
         payload["value"] = value
-    r = requests.post(f"{API_BASE}/purge-header-options", json=payload, headers=_host_headers())
+    r = requests.post(f"{API_BASE}/purge-header-options", json=payload)
     r.raise_for_status()
     return r.json()
 
@@ -27,7 +34,7 @@ def _get_purge_headers(url: str | None = None) -> dict:
     payload: dict = {}
     if url is not None:
         payload["url"] = url
-    r = requests.post(f"{API_BASE}/purge-headers", json=payload, headers=_host_headers())
+    r = requests.post(f"{API_BASE}/purge-headers", json=payload)
     r.raise_for_status()
     data = r.json()
     return data.get("headers", {})
@@ -38,9 +45,7 @@ def test_default_purge_headers_have_no_custom_control_key():
     By default there should be no custom control/auth header; only the core
     headers added by the plugin (host + X-Purge-Method).
     """
-    # Ensure any prior test configuration is cleared.
-    _set_purge_header("", "")
-
+    # Options are reset by clean_purge_headers fixture.
     headers = _get_purge_headers()
     assert headers, "Expected to capture some PURGE headers"
 
@@ -68,8 +73,6 @@ def test_purge_headers_respect_site_options_when_no_constant():
 
     headers = _get_purge_headers()
     assert headers.get("X-Control-Key") == value
-
-    # Clean up so other tests see the default behaviour.
-    _set_purge_header("", "")
+    # Cleanup handled by clean_purge_headers fixture.
 
 

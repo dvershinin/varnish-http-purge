@@ -25,6 +25,11 @@ class VarnishTags {
 	 * @access public
 	 */
 	public function add_headers() {
+		// Check if tags mode is enabled - per-request check to allow dynamic toggling.
+		if ( ! get_site_option( 'vhp_varnish_use_tags' ) ) {
+			return;
+		}
+
 		if ( headers_sent() ) {
 			return;
 		}

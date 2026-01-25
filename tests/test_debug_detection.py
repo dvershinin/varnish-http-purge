@@ -10,20 +10,10 @@ Tests cover:
 - remote_get(): Live header fetching
 """
 
-import os
 import pytest
 import requests
-from urllib.parse import urlparse
 
-WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
-WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", WP_URL)
-API_BASE = f"{WP_BACKEND_URL}/wp-json/test/v1"
-_parsed = urlparse(WP_URL)
-HOST_HEADER_VALUE = "localhost:8080" if _parsed.hostname == "varnish" else _parsed.netloc
-
-
-def _host_headers():
-    return {"Host": HOST_HEADER_VALUE}
+from conftest import API_BASE
 
 
 def call_debug_endpoint(endpoint: str, headers: dict) -> dict:
@@ -31,7 +21,6 @@ def call_debug_endpoint(endpoint: str, headers: dict) -> dict:
     r = requests.post(
         f"{API_BASE}/debug/{endpoint}",
         json={"headers": headers},
-        headers=_host_headers(),
     )
     r.raise_for_status()
     return r.json()
@@ -750,7 +739,6 @@ class TestRemoteGet:
         r = requests.post(
             f"{API_BASE}/debug/remote-get",
             json={"url": ""},  # Empty = home_url()
-            headers=_host_headers(),
         )
         r.raise_for_status()
         data = r.json()
@@ -767,7 +755,6 @@ class TestRemoteGet:
         r = requests.post(
             f"{API_BASE}/debug/remote-get",
             json={},
-            headers=_host_headers(),
         )
         r.raise_for_status()
         data = r.json()

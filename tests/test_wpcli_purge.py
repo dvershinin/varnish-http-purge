@@ -12,12 +12,12 @@ import time
 import requests
 from urllib.parse import urlparse, urlunparse
 
-from conftest import API_BASE, WP_URL, _host_headers, fresh_post
+from conftest import API_BASE, WP_URL, fresh_post
 
 
 def _head(url: str):
     """Make a HEAD request through Varnish."""
-    r = requests.head(url, allow_redirects=False, headers=_host_headers())
+    r = requests.head(url, allow_redirects=False)
     r.raise_for_status()
     return r
 
@@ -50,7 +50,6 @@ def _cli_purge(
     r = requests.post(
         f"{API_BASE}/wp-cli/varnish",
         json=payload,
-        headers=_host_headers(),
     )
     r.raise_for_status()
     return r.json()
@@ -61,7 +60,6 @@ def _enable_tags(enabled: bool):
     r = requests.post(
         f"{API_BASE}/tags-mode",
         json={"enabled": bool(enabled)},
-        headers=_host_headers(),
     )
     r.raise_for_status()
     return r.json()
@@ -72,7 +70,6 @@ def _purge_all():
     r = requests.post(
         f"{API_BASE}/purge",
         json={"all": True},
-        headers=_host_headers(),
     )
     r.raise_for_status()
 

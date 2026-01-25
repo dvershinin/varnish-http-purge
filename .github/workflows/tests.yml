@@ -138,8 +138,7 @@ jobs:
       - name: Run tests (compose up with exit code)
         working-directory: tests
         env:
-          WP_URL: http://varnish
-          WP_BACKEND_URL: http://wordpress
+          WP_URL: http://varnish:6081
         run: docker compose -p vhp up --exit-code-from tester --abort-on-container-exit tester
 
       - name: Show logs on failure

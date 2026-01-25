@@ -4,7 +4,7 @@ import std;
 
 backend default {
     .host = "wordpress";
-    .port = "80";
+    .port = "8080";
     .connect_timeout = 5s;
     .first_byte_timeout = 60s;
     .between_bytes_timeout = 60s;

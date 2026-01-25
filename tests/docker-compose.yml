@@ -34,21 +34,25 @@ services:
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_DEBUG: 1
+      APACHE_HTTP_PORT_NUMBER: 8080
       WORDPRESS_CONFIG_EXTRA: |
-        define('VHP_VARNISH_IP', 'varnish');
+        define('VHP_VARNISH_IP', 'varnish:6081');
         define('VHP_DOMAINS', 'http://alt1.test,http://alt2.test');
         define('VHP_EXCLUDED_POST_STATUSES', 'draft');
         define('WP_ENVIRONMENT_TYPE', 'development');
         define('DISABLE_WP_CRON', true);
         define('WP_DEBUG_DISPLAY', false);
         // Translate localhost URLs to varnish container for debug checks
-        define('VHP_DEBUG_INTERNAL_HOST', 'varnish');
+        define('VHP_DEBUG_INTERNAL_HOST', 'varnish:6081');
     volumes:
       - wp_data:/var/www/html
       - ../:/var/www/html/wp-content/plugins/varnish-http-purge
       - ./mu-plugins/test-control.php:/var/www/html/wp-content/mu-plugins/test-control.php
+      - ./apache-ports.conf:/etc/apache2/ports.conf:ro
+      - ./apache-site.conf:/etc/apache2/sites-available/000-default.conf:ro
+      - ./php-dev.ini:/usr/local/etc/php/conf.d/zz-dev.ini:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost/wp-login.php >/dev/null"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/wp-login.php >/dev/null"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -70,6 +74,7 @@ services:
       - ../:/var/www/html/wp-content/plugins/varnish-http-purge
       - ./mu-plugins/test-control.php:/var/www/html/wp-content/mu-plugins/test-control.php
       - ./wp-cli.yml:/var/www/html/wp-cli.yml:ro
+      - ./php-dev.ini:/usr/local/etc/php/conf.d/zz-dev.ini:ro
     entrypoint: wp
     command: --info
     environment:
@@ -79,14 +84,14 @@ services:
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_DEBUG: 1
       WORDPRESS_CONFIG_EXTRA: |
-        define('VHP_VARNISH_IP', 'varnish');
+        define('VHP_VARNISH_IP', 'varnish:6081');
         define('VHP_DOMAINS', 'http://alt1.test,http://alt2.test');
         define('VHP_EXCLUDED_POST_STATUSES', 'draft');
         define('WP_ENVIRONMENT_TYPE', 'development');
         define('DISABLE_WP_CRON', true);
         define('WP_DEBUG_DISPLAY', false);
         // Translate localhost URLs to varnish container for debug checks
-        define('VHP_DEBUG_INTERNAL_HOST', 'varnish');
+        define('VHP_DEBUG_INTERNAL_HOST', 'varnish:6081');
     networks:
       - vhp_net
 
@@ -103,8 +108,10 @@ services:
       - ./varnish/default.vcl:/etc/varnish/default.vcl:ro
     # Use container filesystem for /var/lib/varnish to avoid noexec tmpfs on some runners
     # No healthcheck; rely on wordpress health and simple wait in CI
+    # ADMIN_REVIEW_PORT: Host port for human admin access (http://localhost:PORT/wp-admin/)
+    # All pytest traffic uses internal http://varnish:6081 directly
     ports:
-      - "${TEST_PORT:-8080}:80"
+      - "${ADMIN_REVIEW_PORT:-64800}:6081"
     networks:
       vhp_net:
         aliases:
@@ -128,8 +135,7 @@ services:
     entrypoint: pytest
     command: -q -c tests/pytest.ini
     environment:
-      WP_URL: http://varnish
-      WP_BACKEND_URL: http://wordpress
+      WP_URL: http://varnish:6081
     dns_opt:
       - ndots:0
       - attempts:1

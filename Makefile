@@ -140,13 +140,28 @@ test:
 
 tests:
 	# Ensure stack is up and WP is initialized before tests
-	export TEST_PORT=$$(python3 -c 'import socket; s=socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()') && \
-	$(MAKE) -e up && \
+	# pytest uses http://varnish:6081 internally - no host port needed
+	# Uses -x by default (stop on first failure) for fast iteration
+	$(MAKE) up && \
 	cd tests && bash setup.sh && \
 	docker compose run --rm tester -q
 
 pytest:
+	# Run pytest with default settings (-x from pytest.ini)
 	cd tests && docker compose run --rm tester -q
+
+pytest-all:
+	# Run ALL tests, don't stop on first failure
+	cd tests && docker compose run --rm tester -q --no-header -p no:cacheprovider -o "addopts=-ra"
+
+pytest-one:
+	# Run a single test file or pattern. Usage: make pytest-one TEST=test_cache_basic
+	@if [ -z "$(TEST)" ]; then echo "Usage: make pytest-one TEST=test_name"; exit 1; fi
+	cd tests && docker compose run --rm tester -v -k "$(TEST)"
+
+pytest-v:
+	# Run tests with verbose output (still stops on first failure)
+	cd tests && docker compose run --rm tester -v
 
 teststack:
 	# Use test-local docker-compose.yml under tests

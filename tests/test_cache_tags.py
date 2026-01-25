@@ -2,11 +2,19 @@ import time
 import requests
 from urllib.parse import urlparse, urlunparse
 
-from conftest import API_BASE, WP_URL, _host_headers, get_headers, fresh_post
+from conftest import (
+    API_BASE, WP_URL, get_headers, fresh_post, wait_for_option_effect,
+    wait_for_cache_hit, wait_for_cache_miss, assert_cache_hit, assert_cache_miss,
+)
+
+# Probe URL for verifying tags mode state.
+# Use the home page which always gets X-Cache-Tags when tags mode is enabled.
+# The home page gets at least the "home" and "site-{id}" tags.
+PROBE_URL = f"{WP_URL}/"
 
 
 def _head(url: str):
-    r = requests.head(url, allow_redirects=False, headers=_host_headers())
+    r = requests.head(url, allow_redirects=False)
     r.raise_for_status()
     return r
 
@@ -15,14 +23,22 @@ def _header(resp, name: str) -> str:
     return resp.headers.get(name)
 
 
-def _enable_tags(enabled: bool):
+def _enable_tags(enabled: bool, timeout: float = 10.0):
+    """Enable or disable tags mode and wait until Varnish reflects the change."""
     r = requests.post(
         f"{API_BASE}/tags-mode",
         json={"enabled": bool(enabled)},
-        headers=_host_headers(),
     )
     r.raise_for_status()
-    return r.json()
+    result = r.json()
+
+    wait_for_option_effect(
+        url=PROBE_URL,
+        header_name="X-Cache-Tags",
+        expected_present=enabled,
+        timeout=timeout,
+    )
+    return result
 
 
 def test_cache_tags_header_and_purge_with_tags_mode(fresh_post):
@@ -40,33 +56,18 @@ def test_cache_tags_header_and_purge_with_tags_mode(fresh_post):
     # Basic sanity: post id tag should be present.
     assert f"p-{post_id}" in tags_header
 
-    # Warm cache to HIT; tolerate a few initial MISS responses.
-    hit_state = None
-    for _ in range(6):
-        time.sleep(0.25)
-        r1 = _head(url)
-        hit_state = _header(r1, "X-Cache")
-        if hit_state == "HIT":
-            break
-    assert hit_state == "HIT", f"Expected to observe a HIT after warming under tag mode, got {hit_state}"
+    # Warm cache to HIT using conftest helper
+    assert_cache_hit(url)
 
     # Update the post to trigger tag-based purge.
     rq = requests.put(
         f"{API_BASE}/post/{post_id}",
         json={"content": f"Updated with tags {time.time()}"},
-        headers=_host_headers(),
     )
     rq.raise_for_status()
 
     # Eventually we should see a MISS again due to tag-based purge.
-    hit_miss = None
-    for _ in range(12):
-        time.sleep(0.5)
-        r2 = _head(url)
-        hit_miss = _header(r2, "X-Cache")
-        if hit_miss == "MISS":
-            break
-    assert hit_miss == "MISS", "Expected MISS after update when tag-based purging is enabled"
+    assert_cache_miss(url)
 
     # Disable tag-based purging again so other tests see legacy behaviour.
     _enable_tags(False)
@@ -82,7 +83,6 @@ def test_cache_tags_purging_with_many_terms_exercises_batching():
     r_create = requests.post(
         f"{API_BASE}/post",
         json={"tags": tag_names},
-        headers=_host_headers(),
     )
     r_create.raise_for_status()
     data = r_create.json()
@@ -104,30 +104,20 @@ def test_cache_tags_purging_with_many_terms_exercises_batching():
     # cross-contamination when purging. Terms are only on archive pages.
     assert f"p-{post_id}" in tags_header
 
-    # Warm to HIT.
-    time.sleep(0.2)
-    r1 = _head(url)
-    assert _header(r1, "X-Cache") == "HIT"
+    # Warm to HIT using conftest helper
+    assert_cache_hit(url)
 
     # Update the post to trigger tag-based purge; this will generate batched
     # X-Cache-Tags-Pattern PURGE requests behind the scenes.
     rq = requests.put(
         f"{API_BASE}/post/{post_id}",
         json={"content": f"Updated with many tags {time.time()}"},
-        headers=_host_headers(),
     )
     rq.raise_for_status()
 
     # Eventually we should see a MISS again due to tag-based purge, proving that
     # batching of tag patterns does not prevent correct invalidation.
-    hit_miss = None
-    for _ in range(12):
-        time.sleep(0.5)
-        r2 = _head(url)
-        hit_miss = _header(r2, "X-Cache")
-        if hit_miss == "MISS":
-            break
-    assert hit_miss == "MISS", "Expected MISS after update when many tags trigger batched purges"
+    assert_cache_miss(url)
 
     # Disable tag-based purging again so other tests see legacy behaviour.
     _enable_tags(False)
@@ -135,7 +125,7 @@ def test_cache_tags_purging_with_many_terms_exercises_batching():
 
 def _create_post_raw():
     """Helper that mirrors the fresh_post fixture but returns both id and rewritten URL."""
-    r = requests.post(f"{API_BASE}/post", json={}, headers=_host_headers())
+    r = requests.post(f"{API_BASE}/post", json={})
     r.raise_for_status()
     data = r.json()
     orig = urlparse(data["url"])
@@ -162,13 +152,10 @@ def _purge_by_tag_pattern(pattern: str, exact: bool = True):
         # This ensures "p-123" doesn't accidentally match "p-1234".
         pattern = f"(^|,){pattern}(,|$)"
 
-    headers = _host_headers()
-    headers.update(
-        {
-            "X-Purge-Method": "tags",
-            "X-Cache-Tags-Pattern": pattern,
-        }
-    )
+    headers = {
+        "X-Purge-Method": "tags",
+        "X-Cache-Tags-Pattern": pattern,
+    }
     r = requests.request("PURGE", f"{WP_URL}/", headers=headers)
     r.raise_for_status()
 
@@ -187,21 +174,24 @@ def test_unrelated_tag_purge_does_not_evict_other_object():
     post_b_id, url_b = _create_post_raw()
 
     # Warm both URLs via Varnish: first MISS, then HIT.
+    # Capture tags from MISS responses (backend always sends X-Cache-Tags on MISS).
     r0a = _head(url_a)
     assert _header(r0a, "X-Cache") == "MISS"
+    tags_a = _header(r0a, "X-Cache-Tags") or ""
+
     r1a = _head(url_a)
     assert _header(r1a, "X-Cache") == "HIT"
 
     r0b = _head(url_b)
     assert _header(r0b, "X-Cache") == "MISS"
+    tags_b = _header(r0b, "X-Cache-Tags") or ""
+
     r1b = _head(url_b)
     assert _header(r1b, "X-Cache") == "HIT"
 
-    # Capture tags for each to ensure they differ at least in the post-id tag.
-    tags_a = _header(r1a, "X-Cache-Tags") or ""
-    tags_b = _header(r1b, "X-Cache-Tags") or ""
-    assert f"p-{post_a_id}" in tags_a
-    assert f"p-{post_b_id}" in tags_b
+    # Verify tags from MISS responses contain the expected post-id tags.
+    assert f"p-{post_a_id}" in tags_a, f"Expected p-{post_a_id} in tags: {tags_a}"
+    assert f"p-{post_b_id}" in tags_b, f"Expected p-{post_b_id} in tags: {tags_b}"
 
     # Verify tags are distinct - use regex-safe boundary check to avoid
     # false positives when one ID is a prefix of another (e.g., 12 vs 123).
@@ -222,14 +212,7 @@ def test_unrelated_tag_purge_does_not_evict_other_object():
     # After purge:
     # - post B should eventually see a MISS again (its tag was targeted).
     # - post A should remain HIT (it doesn't carry that tag).
-    hit_miss_b = None
-    for _ in range(12):
-        time.sleep(0.5)
-        rb = _head(url_b)
-        hit_miss_b = _header(rb, "X-Cache")
-        if hit_miss_b == "MISS":
-            break
-    assert hit_miss_b == "MISS", "Expected MISS on post B after PURGE by its tag"
+    assert_cache_miss(url_b)
 
     # Check A immediately after B's purge is confirmed - it should still be HIT.
     ra_post = _head(url_a)

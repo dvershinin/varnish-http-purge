@@ -10,57 +10,29 @@ These tests verify the complete cache workflow:
 This mirrors the "End-to-End Cache & Purge Test" feature in the admin UI.
 """
 
-import os
 import time
 import requests
 from urllib.parse import urlparse, urlunparse
 
-WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
-API_BASE = f"{WP_URL}/wp-json/test/v1"
-_parsed = urlparse(WP_URL)
-# Host header value is determined dynamically by getting the site URL from a created post.
-# This is cached after first use. Initially None.
-_HOST_HEADER_VALUE = None
-
-
-def _get_host_header_from_url(url: str) -> str:
-    """Extract host:port from URL for use as Host header."""
-    parsed = urlparse(url)
-    if parsed.port and parsed.port != 80:
-        return f"{parsed.hostname}:{parsed.port}"
-    return parsed.hostname or "localhost"
-
-
-def _host_headers(url: str = None):
-    """Get headers with Host header.
-    
-    If url is provided, extract the host from it. Otherwise use cached value.
-    """
-    global _HOST_HEADER_VALUE
-    if url:
-        _HOST_HEADER_VALUE = _get_host_header_from_url(url)
-    if _HOST_HEADER_VALUE:
-        return {"Host": _HOST_HEADER_VALUE}
-    # Fallback for API calls before we know the site URL
-    return {"Host": "localhost:8080"}
+from conftest import (
+    WP_URL,
+    API_BASE,
+    assert_is_wordpress_response,
+    wait_for_cache_hit,
+    wait_for_cache_miss,
+)
 
 
 def _translate_url(url: str) -> str:
-    """Translate a localhost URL to the internal varnish URL.
+    """Ensure URL uses the internal varnish address.
 
-    When running in Docker, WordPress returns URLs like http://localhost:PORT/...
-    but from inside the tester container we need to connect to http://varnish/...
+    WordPress returns URLs using its configured site URL (http://varnish:6081).
+    This helper normalizes URLs to ensure consistency.
     """
     parsed = urlparse(url)
     target = urlparse(WP_URL)
-
-    # If URL is pointing to localhost but WP_URL points to varnish, translate
-    if parsed.hostname == "localhost" and target.hostname == "varnish":
-        # Replace hostname with varnish, keep the path
-        new_parsed = parsed._replace(netloc="varnish")
-        return urlunparse(new_parsed)
-
-    return url
+    new_parsed = parsed._replace(netloc=target.netloc, scheme=target.scheme)
+    return urlunparse(new_parsed)
 
 
 def _get_page_content(url: str) -> tuple:
@@ -68,14 +40,14 @@ def _get_page_content(url: str) -> tuple:
     internal_url = _translate_url(url)
 
     # Don't follow redirects automatically - they might point to localhost
-    r = requests.get(internal_url, allow_redirects=False, headers=_host_headers())
+    r = requests.get(internal_url, allow_redirects=False)
 
     # Handle redirects manually, translating URLs
     max_redirects = 10
     while r.status_code in (301, 302, 303, 307, 308) and max_redirects > 0:
         redirect_url = r.headers.get("Location", "")
         redirect_url = _translate_url(redirect_url)
-        r = requests.get(redirect_url, allow_redirects=False, headers=_host_headers())
+        r = requests.get(redirect_url, allow_redirects=False)
         max_redirects -= 1
 
     r.raise_for_status()
@@ -84,11 +56,10 @@ def _get_page_content(url: str) -> tuple:
 
 def _create_test_post(marker: str) -> dict:
     """Create a test post via REST API.
-    
+
     The marker is placed ONLY in content, not in title, so we can track
     content changes independently of the title.
     """
-    global _HOST_HEADER_VALUE
     resp = requests.post(
         f"{API_BASE}/post",
         json={
@@ -96,21 +67,14 @@ def _create_test_post(marker: str) -> dict:
             "content": f"CONTENT_MARKER:{marker}:END_MARKER",
             "status": "publish",
         },
-        headers=_host_headers(),
     )
     resp.raise_for_status()
-    data = resp.json()
-
-    # Update the Host header value from the returned URL
-    if "url" in data:
-        _HOST_HEADER_VALUE = _get_host_header_from_url(data["url"])
-
-    return data
+    return resp.json()
 
 
 def _update_post_content_bypass_purge(post_id: int, new_marker: str):
     """Update post content directly in DB, bypassing WordPress hooks.
-    
+
     Uses the same format as _create_test_post for consistency.
     """
     resp = requests.post(
@@ -119,7 +83,6 @@ def _update_post_content_bypass_purge(post_id: int, new_marker: str):
             "post_id": post_id,
             "content": f"CONTENT_MARKER:{new_marker}:END_MARKER",
         },
-        headers=_host_headers(),
     )
     resp.raise_for_status()
     return resp.json()
@@ -127,14 +90,13 @@ def _update_post_content_bypass_purge(post_id: int, new_marker: str):
 
 def _purge_url(url: str):
     """Trigger purge for a specific URL.
-    
+
     Note: The URL should be the public URL (as returned by WordPress).
     The REST API will handle the actual purge.
     """
     resp = requests.post(
         f"{API_BASE}/purge",
         json={"url": url},
-        headers=_host_headers(),
     )
     resp.raise_for_status()
     return resp.json()
@@ -145,9 +107,20 @@ def _delete_post(post_id: int):
     resp = requests.post(
         f"{API_BASE}/delete-post",
         json={"post_id": post_id},
-        headers=_host_headers(),
     )
     resp.raise_for_status()
+
+
+def _wait_for_cache_hit(url: str, max_attempts: int = 20, delay: float = 0.25) -> str:
+    """Wait for cache HIT on a URL, handling URL translation."""
+    internal_url = _translate_url(url)
+    return wait_for_cache_hit(internal_url, max_attempts, delay)
+
+
+def _wait_for_cache_miss(url: str, max_attempts: int = 20, delay: float = 0.25) -> str:
+    """Wait for cache MISS on a URL, handling URL translation."""
+    internal_url = _translate_url(url)
+    return wait_for_cache_miss(internal_url, max_attempts, delay)
 
 
 class TestCacheBehavior:
@@ -164,17 +137,20 @@ class TestCacheBehavior:
         try:
             # Purge to start clean
             _purge_url(post_url)
-            time.sleep(0.5)
 
-            # First request - should be MISS
-            body1, headers1 = _get_page_content(post_url)
-            assert marker in body1, "Marker should be in page content"
-            assert headers1.get("X-Cache") == "MISS", "First request should be MISS"
+            # Wait for cache to confirm MISS state (purge processed)
+            state = _wait_for_cache_miss(post_url)
+            assert state == "MISS", f"After purge, expected MISS but got {state}"
 
-            # Second request - should be HIT
-            body2, headers2 = _get_page_content(post_url)
-            assert marker in body2, "Marker should still be in page content"
-            assert headers2.get("X-Cache") == "HIT", "Second request should be HIT"
+            # Wait for cache to warm up (subsequent requests should HIT)
+            state = _wait_for_cache_hit(post_url)
+            assert state == "HIT", f"Cache should warm up to HIT, got {state}"
+
+            # Verify content is correct and served from cache
+            body, headers = _get_page_content(post_url)
+            assert_is_wordpress_response(body, post_url)
+            assert marker in body, "Marker should be in page content"
+            assert headers.get("X-Cache") == "HIT", "Should be cache HIT"
 
         finally:
             _delete_post(post_id)
@@ -188,18 +164,26 @@ class TestCacheBehavior:
         post_url = post["url"]
 
         try:
-            # Prime the cache
+            # Prime the cache: purge, wait for MISS, then wait for HIT
             _purge_url(post_url)
-            time.sleep(0.5)
-            _get_page_content(post_url)  # MISS
-            _get_page_content(post_url)  # HIT - now cached
+
+            state = _wait_for_cache_miss(post_url)
+            assert state == "MISS", f"After purge, expected MISS but got {state}"
+
+            state = _wait_for_cache_hit(post_url)
+            assert state == "HIT", f"Cache should warm up to HIT, got {state}"
+
+            # Verify original content is cached
+            body_cached, _ = _get_page_content(post_url)
+            assert_is_wordpress_response(body_cached, post_url)
+            assert original_marker in body_cached
 
             # Update content directly in DB (bypassing purge hooks)
             new_marker = f"UPDATED_{int(time.time())}"
             _update_post_content_bypass_purge(post_id, new_marker)
-            time.sleep(0.3)
 
             # Request page - should still serve OLD (cached) content
+            # No sleep needed - cache state shouldn't change without purge
             body, headers = _get_page_content(post_url)
 
             # This is the key assertion: cache should serve stale content
@@ -223,28 +207,36 @@ class TestCacheBehavior:
         post_url = post["url"]
 
         try:
-            # Prime the cache
+            # Prime the cache: purge, wait for MISS, then wait for HIT
             _purge_url(post_url)
-            time.sleep(0.5)
-            _get_page_content(post_url)  # MISS
-            body_cached, _ = _get_page_content(post_url)  # HIT
+            state = _wait_for_cache_miss(post_url)
+            assert state == "MISS", f"After purge, expected MISS but got {state}"
+
+            state = _wait_for_cache_hit(post_url)
+            assert state == "HIT", f"Cache should warm up to HIT, got {state}"
+
+            body_cached, _ = _get_page_content(post_url)
+            assert_is_wordpress_response(body_cached, post_url)
             assert original_marker in body_cached
 
             # Update content directly in DB
             new_marker = f"UPDATED_{int(time.time())}"
             _update_post_content_bypass_purge(post_id, new_marker)
-            time.sleep(0.3)
 
-            # Verify cache still serves old content
+            # Verify cache still serves old content (no sleep needed)
             body_stale, headers_stale = _get_page_content(post_url)
             assert original_marker in body_stale, "Cache should still serve old content"
             assert headers_stale.get("X-Cache") == "HIT"
 
-            # Now trigger purge
+            # Now trigger purge and wait for MISS state
             _purge_url(post_url)
-            time.sleep(0.5)
+            state = _wait_for_cache_miss(post_url)
+            assert state == "MISS", f"After purge, expected MISS but got {state}"
 
-            # Request again - should be MISS and serve new content
+            # Wait for cache to warm with fresh content, then verify
+            state = _wait_for_cache_hit(post_url)
+            assert state == "HIT", f"Cache should warm up with fresh content, got {state}"
+
             body_fresh, headers_fresh = _get_page_content(post_url)
 
             assert new_marker in body_fresh, (
@@ -252,9 +244,6 @@ class TestCacheBehavior:
             )
             assert original_marker not in body_fresh, (
                 "After purge, old content should NOT be served"
-            )
-            assert headers_fresh.get("X-Cache") == "MISS", (
-                "After purge, should be cache MISS"
             )
 
         finally:
@@ -269,44 +258,63 @@ class TestCacheBehavior:
         post_url = post["url"]
 
         try:
-            # Step 2: Prime cache
+            # Step 2: Prime cache - purge, wait for MISS, then wait for HIT
             _purge_url(post_url)
-            time.sleep(0.5)
 
+            state = _wait_for_cache_miss(post_url)
+            assert state == "MISS", f"Step 2: After purge, expected MISS but got {state}"
+
+            state = _wait_for_cache_hit(post_url)
+            assert state == "HIT", f"Step 2: Cache should warm up to HIT, got {state}"
+
+            # Verify content is cached correctly
             body1, h1 = _get_page_content(post_url)
+            assert_is_wordpress_response(body1, post_url)
             assert original_marker in body1, "Step 2: Content should be in page"
-            # First hit might be MISS, that's expected
-
-            body2, h2 = _get_page_content(post_url)
-            assert original_marker in body2, "Step 2: Content should still be in page"
+            assert h1.get("X-Cache") == "HIT", "Step 2: Content should be served from cache"
 
             # Step 3: Modify content bypassing purge
             new_marker = f"E2E_UPDATED_{int(time.time())}"
             _update_post_content_bypass_purge(post_id, new_marker)
-            time.sleep(0.5)
 
             # Step 4: Verify caching works (stale content served)
-            body3, h3 = _get_page_content(post_url)
-            caching_works = original_marker in body3 and new_marker not in body3
+            # No sleep needed - cache state shouldn't change without purge
+            body2, h2 = _get_page_content(post_url)
 
-            assert caching_works, (
+            assert h2.get("X-Cache") == "HIT", (
+                f"Step 4: Expected cache HIT but got {h2.get('X-Cache')}. "
+                "Cache may have been invalidated unexpectedly."
+            )
+            assert original_marker in body2, (
                 f"Step 4 FAILED: Caching is not working! "
                 f"Expected stale content with '{original_marker}', "
-                f"but got content with new marker present: {new_marker in body3}"
+                f"but got content with new marker present: {new_marker in body2}"
+            )
+            assert new_marker not in body2, (
+                f"Step 4 FAILED: Cache should serve stale content, "
+                f"but new marker '{new_marker}' was found."
             )
 
-            # Step 5: Trigger purge
+            # Step 5: Trigger purge and wait for MISS, then HIT with fresh content
             _purge_url(post_url)
-            time.sleep(0.5)
+
+            state = _wait_for_cache_miss(post_url)
+            assert state == "MISS", f"Step 5: After purge, expected MISS but got {state}"
+
+            state = _wait_for_cache_hit(post_url)
+            assert state == "HIT", f"Step 5: Cache should warm up with fresh content, got {state}"
 
             # Step 6: Verify purge worked (fresh content served)
-            body4, h4 = _get_page_content(post_url)
-            purge_works = new_marker in body4 and original_marker not in body4
+            body3, h3 = _get_page_content(post_url)
 
-            assert purge_works, (
+            assert new_marker in body3, (
                 f"Step 6 FAILED: Purge is not working! "
                 f"Expected fresh content with '{new_marker}', "
-                f"but stale content is still being served."
+                f"but it was not found in the response."
+            )
+            assert original_marker not in body3, (
+                f"Step 6 FAILED: Stale content still being served. "
+                f"Old marker '{original_marker}' should not be present."
             )
 
         finally:

@@ -2107,10 +2107,9 @@ if ( ! class_exists( 'VarnishStatus' ) ) {
 	require_once 'health-check.php';
 	require_once 'varnish-tags.php';
 
-	// Initialize Tags if enabled.
-	if ( get_site_option( 'vhp_varnish_use_tags' ) ) {
-		new VarnishTags();
-	}
+	// Always instantiate VarnishTags; the option check is done per-request in add_headers()
+	// to allow dynamic toggling without restarting PHP.
+	new VarnishTags();
 
 	$purger = new VarnishPurger();
 }

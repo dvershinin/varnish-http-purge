@@ -13,19 +13,23 @@ import time
 import requests
 from urllib.parse import urlparse, urlunparse
 
-from conftest import API_BASE, WP_URL, _host_headers
+from conftest import (
+    API_BASE, WP_URL,
+    wait_for_cache_hit, wait_for_cache_miss,
+    assert_cache_hit, assert_cache_miss,
+)
 
 
 def _head(url: str):
     """Make a HEAD request through Varnish."""
-    r = requests.head(url, allow_redirects=False, headers=_host_headers())
+    r = requests.head(url, allow_redirects=False)
     r.raise_for_status()
     return r
 
 
 def _get(url: str):
     """Make a GET request through Varnish."""
-    r = requests.get(url, allow_redirects=False, headers=_host_headers())
+    r = requests.get(url, allow_redirects=False)
     r.raise_for_status()
     return r
 
@@ -35,15 +39,24 @@ def _header(resp, name: str) -> str:
     return resp.headers.get(name)
 
 
-def _enable_tags(enabled: bool):
-    """Enable or disable tag-based purging mode."""
+def _enable_tags(enabled: bool, timeout: float = 10.0):
+    """Enable or disable tag-based purging mode and wait for effect."""
+    from conftest import wait_for_option_effect
+
     r = requests.post(
         f"{API_BASE}/tags-mode",
         json={"enabled": bool(enabled)},
-        headers=_host_headers(),
     )
     r.raise_for_status()
-    return r.json()
+    result = r.json()
+
+    wait_for_option_effect(
+        url=WP_URL + "/",
+        header_name="X-Cache-Tags",
+        expected_present=enabled,
+        timeout=timeout,
+    )
+    return result
 
 
 def _create_post(title: str = None, content: str = None):
@@ -54,7 +67,7 @@ def _create_post(title: str = None, content: str = None):
     if content:
         payload["content"] = content
 
-    r = requests.post(f"{API_BASE}/post", json=payload, headers=_host_headers())
+    r = requests.post(f"{API_BASE}/post", json=payload)
     r.raise_for_status()
     data = r.json()
 
@@ -73,7 +86,6 @@ def _update_post(post_id: int, content: str = None):
     r = requests.put(
         f"{API_BASE}/post/{post_id}",
         json=payload,
-        headers=_host_headers(),
     )
     r.raise_for_status()
     return r.json()
@@ -84,7 +96,6 @@ def _purge_all():
     r = requests.post(
         f"{API_BASE}/purge",
         json={"all": True},
-        headers=_host_headers(),
     )
     r.raise_for_status()
 
@@ -95,26 +106,6 @@ def _get_blog_url():
     return WP_URL + "/"
 
 
-def _wait_for_hit(url: str, max_attempts: int = 6) -> bool:
-    """Wait until the URL returns a cache HIT."""
-    for _ in range(max_attempts):
-        time.sleep(0.25)
-        r = _head(url)
-        if _header(r, "X-Cache") == "HIT":
-            return True
-    return False
-
-
-def _wait_for_miss(url: str, max_attempts: int = 12) -> bool:
-    """Wait until the URL returns a cache MISS."""
-    for _ in range(max_attempts):
-        time.sleep(0.5)
-        r = _head(url)
-        if _header(r, "X-Cache") == "MISS":
-            return True
-    return False
-
-
 def test_blog_page_includes_post_tags():
     """
     Verify that the blog page includes individual post tags (p-{id})
@@ -122,19 +113,15 @@ def test_blog_page_includes_post_tags():
     """
     _enable_tags(True)
     _purge_all()
-    time.sleep(0.3)
 
     # Create a few posts that will appear on the blog page
+    # (wp_insert_post is synchronous, no sleep needed)
     post1_id, _ = _create_post(title="Smart Tag Test Post 1")
     post2_id, _ = _create_post(title="Smart Tag Test Post 2")
     post3_id, _ = _create_post(title="Smart Tag Test Post 3")
 
-    # Give WordPress a moment to process
-    time.sleep(0.3)
-
-    # Purge cache so we get fresh headers
+    # Purge cache so we get fresh headers (purge is synchronous)
     _purge_all()
-    time.sleep(0.3)
 
     # Request the blog page with GET (not HEAD) to ensure headers are present
     blog_url = _get_blog_url()
@@ -170,15 +157,12 @@ def test_post_update_purges_blog_via_post_tag():
     """
     _enable_tags(True)
     _purge_all()
-    time.sleep(0.3)
 
-    # Create a post
+    # Create a post (synchronous operation)
     post_id, post_url = _create_post(title="Blog Invalidation Test Post")
-    time.sleep(0.3)
 
     # Purge and warm the blog page
     _purge_all()
-    time.sleep(0.3)
 
     blog_url = _get_blog_url()
 
@@ -189,16 +173,14 @@ def test_post_update_purges_blog_via_post_tag():
     # Note: X-Cache-Tags might not be visible in response headers
     # (can be stripped by Varnish), so we verify behavior via purge
 
-    # Warm to HIT
-    assert _wait_for_hit(blog_url), "Expected blog page to cache (HIT)"
+    # Warm to HIT using conftest helper
+    assert_cache_hit(blog_url)
 
     # Update the post
     _update_post(post_id, content="Updated content for invalidation test")
 
     # Blog should now be invalidated (MISS) because it carried p-{post_id}
-    assert _wait_for_miss(blog_url), (
-        "Expected blog page to be invalidated (MISS) after post update"
-    )
+    assert_cache_miss(blog_url)
 
     _enable_tags(False)
 
@@ -219,20 +201,16 @@ def test_purge_tags_no_longer_include_blanket_blog_tag():
 
     _enable_tags(True)
     _purge_all()
-    time.sleep(0.5)
 
     # We need enough posts to have pagination.
     # Default WordPress shows 10 posts per page.
-    # Create 15 posts to ensure we have page 2.
+    # Create 15 posts to ensure we have page 2 (synchronous operations).
     created_posts = []
     for i in range(15):
         post_id, _ = _create_post(title=f"Pagination Test Post {i}")
         created_posts.append(post_id)
-        time.sleep(0.1)
 
-    time.sleep(0.5)
     _purge_all()
-    time.sleep(0.5)
 
     # The most recent posts (created last) appear on page 1.
     # Older posts appear on page 2.
@@ -246,8 +224,9 @@ def test_purge_tags_no_longer_include_blanket_blog_tag():
         _enable_tags(False)
         pytest.skip("Page 2 returned 404 - not enough posts for pagination")
 
-    # Wait for page 2 to be cached
-    if not _wait_for_hit(page2_url):
+    # Wait for page 2 to be cached using conftest helper
+    state = wait_for_cache_hit(page2_url)
+    if state != "HIT":
         _enable_tags(False)
         pytest.skip("Page 2 couldn't be cached")
 
@@ -256,13 +235,13 @@ def test_purge_tags_no_longer_include_blanket_blog_tag():
 
     # Purge and re-fetch page 2 to get fresh tags
     _purge_all()
-    time.sleep(0.3)
 
     r_fresh = _head(page2_url)
     tags_header = _header(r_fresh, "X-Cache-Tags") or ""
 
     # Wait for page 2 to cache again
-    if not _wait_for_hit(page2_url):
+    state = wait_for_cache_hit(page2_url)
+    if state != "HIT":
         _enable_tags(False)
         pytest.skip("Page 2 couldn't be cached after purge")
 
@@ -274,8 +253,8 @@ def test_purge_tags_no_longer_include_blanket_blog_tag():
     # Update the newest post (which is on page 1)
     _update_post(newest_post_id, content="Updated newest post")
 
-    # Give time for purge to process
-    time.sleep(0.5)
+    # Poll briefly to allow purge to propagate, then check state
+    time.sleep(0.3)
 
     # Page 2 should still be cached
     r_post = _head(page2_url)
@@ -303,40 +282,26 @@ def test_single_post_update_does_not_purge_unrelated_post():
     """
     _enable_tags(True)
     _purge_all()
-    time.sleep(0.5)
 
-    # Create two posts with significant time gap to avoid ID collisions
+    # Create two posts (synchronous operations)
     post_a_id, url_a = _create_post(title="Unrelated Post A")
-    time.sleep(0.2)
     post_b_id, url_b = _create_post(title="Unrelated Post B")
 
-    time.sleep(0.5)
     _purge_all()
-    time.sleep(0.5)
 
     # Warm post A and verify it's cached
     r0a = _head(url_a)
     assert _header(r0a, "X-Cache") == "MISS", "First request to A should MISS"
 
-    # Wait for A to be cached
-    for _ in range(6):
-        time.sleep(0.3)
-        ra = _head(url_a)
-        if _header(ra, "X-Cache") == "HIT":
-            break
-    assert _header(ra, "X-Cache") == "HIT", "Post A should be cached"
+    # Wait for A to be cached using conftest helper
+    assert_cache_hit(url_a)
 
     # Warm post B
     r0b = _head(url_b)
     assert _header(r0b, "X-Cache") == "MISS", "First request to B should MISS"
 
     # Wait for B to be cached
-    for _ in range(6):
-        time.sleep(0.3)
-        rb = _head(url_b)
-        if _header(rb, "X-Cache") == "HIT":
-            break
-    assert _header(rb, "X-Cache") == "HIT", "Post B should be cached"
+    assert_cache_hit(url_b)
 
     # Verify A is still cached before we update B
     ra_pre = _head(url_a)
@@ -345,13 +310,8 @@ def test_single_post_update_does_not_purge_unrelated_post():
     # Update post B
     _update_post(post_b_id, content="Updated post B")
 
-    # Wait for B to be invalidated
-    for _ in range(12):
-        time.sleep(0.5)
-        rb_after = _head(url_b)
-        if _header(rb_after, "X-Cache") == "MISS":
-            break
-    assert _header(rb_after, "X-Cache") == "MISS", "Post B should be invalidated after update"
+    # Wait for B to be invalidated using conftest helper
+    assert_cache_miss(url_b)
 
     # Check A immediately after confirming B is invalidated
     ra_post = _head(url_a)
@@ -376,16 +336,14 @@ def test_feed_tag_only_for_post_type():
     """
     _enable_tags(True)
     _purge_all()
-    time.sleep(0.5)
 
-    # Create a post (type: post)
+    # Create a post (type: post) - synchronous operation
     post_id, post_url = _create_post(title="Feed Tag Test Post")
 
     # Create a page (type: page)
     r = requests.post(
         f"{API_BASE}/post",
         json={"title": "Feed Tag Test Page", "type": "page"},
-        headers=_host_headers(),
     )
     r.raise_for_status()
     page_data = r.json()
@@ -396,9 +354,7 @@ def test_feed_tag_only_for_post_type():
         (dest.scheme, dest.netloc, orig.path, orig.params, orig.query, orig.fragment)
     )
 
-    time.sleep(0.3)
     _purge_all()
-    time.sleep(0.5)
 
     # Request the feed
     feed_url = WP_URL + "/feed/"
@@ -409,22 +365,19 @@ def test_feed_tag_only_for_post_type():
         _enable_tags(False)
         return
 
-    # Warm the feed - try multiple times
-    for _ in range(5):
-        time.sleep(0.3)
-        r_feed = _head(feed_url)
-        if _header(r_feed, "X-Cache") == "HIT":
-            break
+    # Warm the feed using conftest helper
+    state = wait_for_cache_hit(feed_url, max_attempts=10)
 
     # If feed still isn't cached, skip the test (feed caching might be disabled)
-    if _header(r_feed, "X-Cache") != "HIT":
+    if state != "HIT":
         _enable_tags(False)
         return
 
     # Update the page (not a 'post' type)
     _update_post(page_id, content="Updated page content")
 
-    time.sleep(0.5)
+    # Brief pause then check - feed should still be cached
+    time.sleep(0.3)
 
     # Feed should still be cached because pages don't trigger feed purge
     r_feed_post = _head(feed_url)
@@ -441,10 +394,8 @@ def test_feed_tag_only_for_post_type():
     # Now verify that updating a post DOES invalidate the feed
     _update_post(post_id, content="Updated post content")
 
-    # Feed should now be invalidated
-    assert _wait_for_miss(feed_url), (
-        "Feed should be invalidated after updating a post (type: post)"
-    )
+    # Feed should now be invalidated using conftest helper
+    assert_cache_miss(feed_url)
 
     _enable_tags(False)
 
@@ -456,23 +407,19 @@ def test_archive_page_includes_displayed_post_tags():
     """
     _enable_tags(True)
     _purge_all()
-    time.sleep(0.3)
 
-    # Create posts with tags (taxonomy terms)
+    # Create posts with tags (taxonomy terms) - synchronous operation
     tag_names = ["smart-tag-test-category"]
     r = requests.post(
         f"{API_BASE}/post",
         json={"title": "Archive Test Post", "tags": tag_names},
-        headers=_host_headers(),
     )
     r.raise_for_status()
     data = r.json()
     post_id = data["id"]
     tag_ids = data.get("tag_ids", [])
 
-    time.sleep(0.3)
     _purge_all()
-    time.sleep(0.3)
 
     # If we have tag IDs, we can try to access the tag archive
     if tag_ids:

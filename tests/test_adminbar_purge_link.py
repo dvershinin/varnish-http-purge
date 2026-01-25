@@ -3,39 +3,34 @@ Tests for admin bar functionality including:
 - Purge link URL building
 - Admin bar rendering (exercises get_current_blog_id() and permission checks)
 """
-import os
 import time
 from urllib.parse import urlparse, urlunparse
 import requests
 import pytest
 
-WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
-WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", "http://wordpress")
-API_BASE = f"{WP_BACKEND_URL}/wp-json/test/v1"
-_parsed = urlparse(WP_URL)
-HOST_HEADER_VALUE = "localhost:8080" if _parsed.hostname == "varnish" else _parsed.netloc
-
-
-def _host_headers():
-    return {"Host": HOST_HEADER_VALUE}
+from conftest import (
+    WP_URL, API_BASE,
+    wait_for_cache_hit, wait_for_cache_miss,
+    DEFAULT_POLL_DELAY, DEFAULT_POLL_ATTEMPTS,
+)
 
 
 def _to_container_url(u: str) -> str:
+    """Normalize URL to use the Varnish container address."""
     orig = urlparse(u)
     dest = urlparse(WP_URL)
     return urlunparse((dest.scheme, dest.netloc, orig.path, orig.params, orig.query, orig.fragment))
 
 
 def _to_home_url(u: str) -> str:
-    """Convert URL to use the WordPress site host (home_url), not the varnish service.
-    This simulates how WP actually builds adminbar links.
+    """Convert URL to use the WordPress site host (home_url).
+    Since WordPress is installed with http://varnish:6081, this is the same as _to_container_url.
     """
-    orig = urlparse(u)
-    return urlunparse((orig.scheme, HOST_HEADER_VALUE, orig.path, orig.params, orig.query, orig.fragment))
+    return _to_container_url(u)
 
 
 def head(url: str):
-    r = requests.head(url, headers=_host_headers(), allow_redirects=False)
+    r = requests.head(url, allow_redirects=False)
     r.raise_for_status()
     return r
 
@@ -45,23 +40,29 @@ def header(r, name: str) -> str:
 
 
 def _purge_all():
-    r = requests.post(f"{API_BASE}/purge", json={"all": True}, headers=_host_headers())
+    r = requests.post(f"{API_BASE}/purge", json={"all": True})
     r.raise_for_status()
 
 
 def _warm_get(url: str):
     # Use GET to ensure cache fill; tolerate redirects
-    r = requests.get(url, headers=_host_headers(), allow_redirects=False)
+    r = requests.get(url, allow_redirects=False)
     return r
 
 
-def _wait_for_cache_state(url: str, expected: str, max_attempts: int = 10, delay: float = 0.3):
+def _wait_for_cache_state(url: str, expected: str, max_attempts: int = DEFAULT_POLL_ATTEMPTS,
+                          delay: float = DEFAULT_POLL_DELAY):
     """
     Wait for cache to reach expected state (HIT or MISS).
-    
+
     Returns the final cache state after retrying. This helps avoid flakiness
     caused by purge propagation delays or race conditions.
     """
+    if expected == "HIT":
+        return wait_for_cache_hit(url, max_attempts, delay)
+    elif expected == "MISS":
+        return wait_for_cache_miss(url, max_attempts, delay)
+    # Fallback to manual polling for other states
     got = None
     for _ in range(max_attempts):
         time.sleep(delay)
@@ -94,10 +95,10 @@ def _wait_for_cache_state(url: str, expected: str, max_attempts: int = 10, delay
     ],
 )
 def test_adminbar_purge_link_no_trailing_slash(mode, expect_miss):
-    r = requests.post(f"{API_BASE}/permalinks", json={"structure": "/%postname%"}, headers=_host_headers())
+    r = requests.post(f"{API_BASE}/permalinks", json={"structure": "/%postname%"})
     r.raise_for_status()
 
-    c = requests.post(f"{API_BASE}/post", json={}, headers=_host_headers())
+    c = requests.post(f"{API_BASE}/post", json={})
     c.raise_for_status()
     data = c.json()
     url = _to_container_url(data["url"]).rstrip('/')
@@ -117,7 +118,7 @@ def test_adminbar_purge_link_no_trailing_slash(mode, expect_miss):
     # Simulate admin bar purge effect server-side, focusing on the URL building logic
     # Simulate the server building links with the site's home_url host
     page_url = _to_home_url(url)
-    b = requests.post(f"{API_BASE}/adminbar-purge-exec", json={"page_url": page_url, "mode": mode}, headers=_host_headers())
+    b = requests.post(f"{API_BASE}/adminbar-purge-exec", json={"page_url": page_url, "mode": mode})
     b.raise_for_status()
 
     # Wait for cache state after adminbar purge
@@ -140,7 +141,7 @@ def test_adminbar_render_no_errors():
     - Permission logic runs without exceptions
     - Admin bar nodes are generated correctly
     """
-    r = requests.get(f"{API_BASE}/adminbar-render", headers=_host_headers())
+    r = requests.get(f"{API_BASE}/adminbar-render")
     r.raise_for_status()
     data = r.json()
 

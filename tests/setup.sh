@@ -5,16 +5,22 @@ wp() {
   docker compose run --rm wpcli --path=/var/www/html "$@"
 }
 
-until docker compose exec -T wordpress curl -sSf http://localhost/wp-admin/install.php >/dev/null 2>&1; do
+until docker compose exec -T wordpress curl -sSf http://localhost:8080/wp-admin/install.php >/dev/null 2>&1; do
   echo "Waiting for WordPress to be reachable..."
   sleep 3
 done
 
-PORT="${TEST_PORT:-8080}"
+# Reload Apache to clear OPcache and pick up any PHP file changes.
+# This ensures tests run against the latest plugin code.
+docker compose exec -T wordpress apachectl graceful 2>/dev/null || true
+sleep 1
 
-if ! wp core is-installed --url="http://localhost:${PORT}"; then
+# WordPress is installed with internal Docker URL - all test traffic uses this
+WP_INTERNAL_URL="http://varnish:6081"
+
+if ! wp core is-installed --url="${WP_INTERNAL_URL}"; then
   wp core install \
-    --url="http://localhost:${PORT}" \
+    --url="${WP_INTERNAL_URL}" \
     --title="Varnish Test" \
     --admin_user=admin \
     --admin_password=admin \
@@ -37,7 +43,12 @@ if ! wp post list --post_type=post --format=ids | grep -qE '^[0-9]+'; then
   wp post create --post_title="Hello Cache" --post_content="First content" --post_status=publish
 fi
 
-echo "Setup complete. Site at http://localhost:${PORT}"
+# Show admin review URL if ADMIN_REVIEW_PORT is set (for human access from host)
+if [ -n "${ADMIN_REVIEW_PORT:-}" ]; then
+  echo "Setup complete. Admin review at http://localhost:${ADMIN_REVIEW_PORT}/wp-admin/ (admin/admin)"
+else
+  echo "Setup complete. Site URL: ${WP_INTERNAL_URL}"
+fi
 
 
 

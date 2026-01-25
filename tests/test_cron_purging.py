@@ -3,11 +3,14 @@ from urllib.parse import urlparse
 
 import requests
 
-from conftest import API_BASE, _host_headers, fresh_post
+from conftest import (
+    API_BASE, fresh_post,
+    wait_for_cache_miss, assert_cache_miss,
+)
 
 
 def _head(url: str):
-    resp = requests.head(url, allow_redirects=False, headers=_host_headers())
+    resp = requests.head(url, allow_redirects=False)
     resp.raise_for_status()
     return resp
 
@@ -20,7 +23,6 @@ def _enable_tags(enabled: bool):
     r = requests.post(
         f"{API_BASE}/tags-mode",
         json={"enabled": bool(enabled)},
-        headers=_host_headers(),
     )
     r.raise_for_status()
     return r.json()
@@ -37,27 +39,26 @@ def _set_cron_mode(mode: str):
     r = requests.post(
         f"{API_BASE}/cron-mode",
         json={"mode": mode},
-        headers=_host_headers(),
     )
     r.raise_for_status()
     return r.json()
 
 
 def _queue_status():
-    r = requests.get(f"{API_BASE}/purge-queue", headers=_host_headers())
+    r = requests.get(f"{API_BASE}/purge-queue")
     r.raise_for_status()
     data = r.json()
     return data["queue"]
 
 
 def _clear_queue():
-    r = requests.post(f"{API_BASE}/purge-queue/clear", headers=_host_headers())
+    r = requests.post(f"{API_BASE}/purge-queue/clear")
     r.raise_for_status()
     return r.json()
 
 
 def _run_queue():
-    r = requests.post(f"{API_BASE}/run-cron-processor", headers=_host_headers())
+    r = requests.post(f"{API_BASE}/run-cron-processor")
     r.raise_for_status()
     return r.json()
 
@@ -79,7 +80,6 @@ def test_cron_mode_url_purge_queue_and_process(fresh_post):
     rq = requests.put(
         f"{API_BASE}/post/{post_id}",
         json={"content": f"Updated via cron-mode {time.time()}"},
-        headers=_host_headers(),
     )
     rq.raise_for_status()
 
@@ -98,14 +98,7 @@ def test_cron_mode_url_purge_queue_and_process(fresh_post):
     # cache behaviour below.
 
     # We should eventually observe a cache MISS again due to the queued purge.
-    state = None
-    for _ in range(12):
-        time.sleep(0.5)
-        resp = _head(url)
-        state = _header(resp, "X-Cache")
-        if state == "MISS":
-            break
-    assert state == "MISS", "Expected MISS after processing the async purge queue"
+    assert_cache_miss(url)
 
     # Reset cron-mode and queue so other tests see default synchronous behaviour.
     _set_cron_mode("force_off")
@@ -130,7 +123,6 @@ def test_cron_mode_tag_purge_queue_and_process(fresh_post):
     rq = requests.put(
         f"{API_BASE}/post/{post_id}",
         json={"content": f"Updated under tag-mode+cron {time.time()}"},
-        headers=_host_headers(),
     )
     rq.raise_for_status()
 
@@ -149,14 +141,7 @@ def test_cron_mode_tag_purge_queue_and_process(fresh_post):
     ), "Expected at least one tag-based PURGE request when processing the queue"
 
     # Eventually the cached object should be invalidated and we see a MISS again.
-    state = None
-    for _ in range(12):
-        time.sleep(0.5)
-        resp = _head(url)
-        state = _header(resp, "X-Cache")
-        if state == "MISS":
-            break
-    assert state == "MISS", "Expected MISS after processing tag-based async purge queue"
+    assert_cache_miss(url)
 
     # Reset environment for other tests.
     _enable_tags(False)
@@ -172,7 +157,6 @@ def _simulate_manual_purge(purge_type: str, url: str = None):
     r = requests.post(
         f"{API_BASE}/simulate-manual-purge",
         json=payload,
-        headers=_host_headers(),
     )
     r.raise_for_status()
     return r.json()

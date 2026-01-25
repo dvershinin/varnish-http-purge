@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
-from conftest import API_BASE, WP_URL, WP_BACKEND_URL, _host_headers
+from conftest import API_BASE, WP_URL, WP_BACKEND_URL, purge_all_and_wait, wait_for_cache_hit
 
 
 def _backend_get(path: str):
@@ -42,7 +42,7 @@ def _create_scheduled_post(seconds_from_now: int = 5):
         # Use explicit GMT date so WordPress schedules publish_future_post correctly.
         "date_gmt": when.strftime("%Y-%m-%dT%H:%M:%S"),
     }
-    resp = requests.post(f"{API_BASE}/post", json=payload, headers=_host_headers(), timeout=10)
+    resp = requests.post(f"{API_BASE}/post", json=payload, timeout=10)
     resp.raise_for_status()
     data = resp.json()
 
@@ -57,29 +57,29 @@ def test_scheduled_post_publishes_and_purges_via_cron():
     This test verifies the fix for the reported issue where scheduled posts
     did not auto-flush the Varnish cache when published automatically.
     """
-    # Start from a clean cache so we can observe MISS -> HIT cycles.
-    r = requests.post(f"{API_BASE}/purge", json={"all": True}, headers=_host_headers(), timeout=10)
-    r.raise_for_status()
-    time.sleep(0.5)
-
     home = f"{WP_URL}/"
+
+    # Start from a clean cache so we can observe MISS -> HIT cycles.
+    # Use purge_all_and_wait to avoid flakiness from purge propagation delays.
+    purge_all_and_wait()
 
     # Warm the home page cache: first request is MISS, second is HIT.
     # Use allow_redirects=False to avoid following WordPress redirects to
     # localhost which isn't reachable from inside the container.
-    r0 = requests.get(home, headers=_host_headers(), timeout=10, allow_redirects=False)
+    r0 = requests.get(home, timeout=10, allow_redirects=False)
     # Accept redirect responses (301/302) or 200 - WordPress may redirect to canonical URL.
     assert r0.status_code in (200, 301, 302), f"Expected 200/301/302, got {r0.status_code}"
     assert r0.headers.get("X-Cache") == "MISS", "First home request should be MISS"
 
-    r1 = requests.get(home, headers=_host_headers(), timeout=10, allow_redirects=False)
-    assert r1.headers.get("X-Cache") == "HIT", "Second home request should be HIT"
+    # Wait for cache to warm up reliably
+    state = wait_for_cache_hit(home)
+    assert state == "HIT", f"Second home request should be HIT, got {state}"
 
-    # Create a scheduled post that will publish in 5 seconds.
-    post_id, title = _create_scheduled_post(seconds_from_now=5)
+    # Create a scheduled post that will publish in 2 seconds.
+    post_id, title = _create_scheduled_post(seconds_from_now=2)
 
     # Wait for the scheduled time to pass, then run cron.
-    time.sleep(6)
+    time.sleep(3)
 
     # Drive WordPress cron until the scheduled post is published.
     status = None
@@ -97,14 +97,14 @@ def test_scheduled_post_publishes_and_purges_via_cron():
 
     # After publish, the home page cache should be purged.
     # First request should be MISS (cache was invalidated).
-    r2 = requests.get(home, headers=_host_headers(), timeout=10, allow_redirects=False)
+    r2 = requests.get(home, timeout=10, allow_redirects=False)
     assert r2.headers.get("X-Cache") == "MISS", (
         "Home page should be MISS after scheduled post publish - "
         "cache should have been purged by transition_post_status hook"
     )
 
     # Second request should be HIT (freshly cached).
-    r3 = requests.get(home, headers=_host_headers(), timeout=10, allow_redirects=False)
+    r3 = requests.get(home, timeout=10, allow_redirects=False)
     assert r3.headers.get("X-Cache") == "HIT", "Home page should be HIT after being re-cached"
 
     # Verify the published post's canonical URL is accessible via Varnish.
@@ -120,7 +120,7 @@ def test_scheduled_post_publishes_and_purges_via_cron():
         post_url = urlunparse(
             (dest.scheme, dest.netloc, orig.path, orig.params, orig.query, orig.fragment)
         )
-        r_post = requests.get(post_url, headers=_host_headers(), timeout=10, allow_redirects=False)
+        r_post = requests.get(post_url, timeout=10, allow_redirects=False)
         # Accept 200 or redirect (WordPress may redirect to canonical URL with trailing slash)
         assert r_post.status_code in (200, 301, 302), f"Published post should return 200/301/302, got {r_post.status_code}"
 

@@ -3,20 +3,10 @@ Tests for bug fixes found during code quality review.
 
 These tests verify that specific bugs have been fixed and don't regress.
 """
-import os
-from urllib.parse import urlparse
 import requests
 import pytest
 
-WP_URL = os.environ.get("WP_URL", "http://localhost:8080")
-WP_BACKEND_URL = os.environ.get("WP_BACKEND_URL", "http://wordpress")
-API_BASE = f"{WP_BACKEND_URL}/wp-json/test/v1"
-_parsed = urlparse(WP_URL)
-HOST_HEADER_VALUE = "localhost:8080" if _parsed.hostname == "varnish" else _parsed.netloc
-
-
-def _host_headers():
-    return {"Host": HOST_HEADER_VALUE}
+from conftest import API_BASE
 
 
 class TestDevmodeNoticeLogicFix:
@@ -36,7 +26,6 @@ class TestDevmodeNoticeLogicFix:
         r = requests.post(
             f"{API_BASE}/devmode-notice-check",
             json={"action": "deactivate"},
-            headers=_host_headers()
         )
         r.raise_for_status()
 
@@ -44,7 +33,6 @@ class TestDevmodeNoticeLogicFix:
         r = requests.post(
             f"{API_BASE}/devmode-notice-check",
             json={"action": "activate"},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -60,7 +48,6 @@ class TestDevmodeNoticeLogicFix:
         r = requests.post(
             f"{API_BASE}/devmode-notice-check",
             json={"action": "deactivate"},
-            headers=_host_headers()
         )
         r.raise_for_status()
 
@@ -68,7 +55,6 @@ class TestDevmodeNoticeLogicFix:
         r = requests.post(
             f"{API_BASE}/devmode-notice-check",
             json={"action": "check"},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -93,7 +79,6 @@ class TestHealthCheckDebugLogHandling:
         r = requests.post(
             f"{API_BASE}/health-check-debug-log",
             json={"debug_log": False},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -106,7 +91,6 @@ class TestHealthCheckDebugLogHandling:
         r = requests.post(
             f"{API_BASE}/health-check-debug-log",
             json={"debug_log": None},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -119,7 +103,6 @@ class TestHealthCheckDebugLogHandling:
         r = requests.post(
             f"{API_BASE}/health-check-debug-log",
             json={"debug_log": "not an array"},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -132,7 +115,6 @@ class TestHealthCheckDebugLogHandling:
         r = requests.post(
             f"{API_BASE}/health-check-debug-log",
             json={"debug_log": {"http://example.com": "not an array"}},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -151,7 +133,6 @@ class TestHealthCheckDebugLogHandling:
         r = requests.post(
             f"{API_BASE}/health-check-debug-log",
             json={"debug_log": valid_data},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -175,7 +156,6 @@ class TestPluginOptionsCleanup:
         """Verify all plugin options are in the expected list for cleanup."""
         r = requests.get(
             f"{API_BASE}/check-plugin-options",
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -204,7 +184,6 @@ class TestPluginOptionsCleanup:
         r = requests.post(
             f"{API_BASE}/create-plugin-options",
             json={},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -214,7 +193,6 @@ class TestPluginOptionsCleanup:
         # Now verify they exist
         r = requests.get(
             f"{API_BASE}/check-plugin-options",
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -241,7 +219,6 @@ class TestSettingsSanitization:
         r = requests.post(
             f"{API_BASE}/test-settings-sanitize",
             json={"type": "maxposts", "value": ""},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -257,7 +234,6 @@ class TestSettingsSanitization:
         r = requests.post(
             f"{API_BASE}/test-settings-sanitize",
             json={"type": "maxposts", "value": "75"},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -270,7 +246,6 @@ class TestSettingsSanitization:
         r = requests.post(
             f"{API_BASE}/test-settings-sanitize",
             json={"type": "ip", "value": ""},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -283,7 +258,6 @@ class TestSettingsSanitization:
         r = requests.post(
             f"{API_BASE}/test-settings-sanitize",
             json={"type": "ip", "value": "192.168.1.1"},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -296,7 +270,6 @@ class TestSettingsSanitization:
         r = requests.post(
             f"{API_BASE}/test-settings-sanitize",
             json={"type": "ip", "value": "192.168.1.1, 10.0.0.1"},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -314,7 +287,6 @@ class TestSettingsSanitization:
                 "type": "devmode",
                 "value": {"active": True, "expire": expire_timestamp}
             },
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()
@@ -331,7 +303,6 @@ class TestSettingsSanitization:
         r = requests.post(
             f"{API_BASE}/test-settings-sanitize",
             json={"type": "devmode", "value": ""},
-            headers=_host_headers()
         )
         r.raise_for_status()
         data = r.json()

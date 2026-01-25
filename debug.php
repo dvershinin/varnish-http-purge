@@ -1236,39 +1236,3 @@ class VarnishDebug {
 		return $output;
 	}
 }
-
-/**
- * Filter to translate debug check URLs for internal networking.
- *
- * This is useful in Docker or similar environments where the public URL
- * (e.g., http://localhost:8080) isn't reachable from the server itself.
- *
- * Set VHP_DEBUG_INTERNAL_HOST in wp-config.php to the internal hostname
- * (e.g., 'varnish' for the Varnish container in Docker).
- *
- * @since 5.3.0
- */
-add_filter(
-	'vhp_debug_check_url',
-	function ( $url ) {
-		if ( defined( 'VHP_DEBUG_INTERNAL_HOST' ) && VHP_DEBUG_INTERNAL_HOST ) {
-			$parsed = wp_parse_url( $url );
-			if ( ! empty( $parsed['host'] ) ) {
-				// Replace the host with the internal host, keep port 80 for HTTP.
-				$internal_host = VHP_DEBUG_INTERNAL_HOST;
-				$scheme        = isset( $parsed['scheme'] ) ? $parsed['scheme'] : 'http';
-				$path          = isset( $parsed['path'] ) ? $parsed['path'] : '/';
-				$query         = isset( $parsed['query'] ) ? '?' . $parsed['query'] : '';
-
-				$new_url = $scheme . '://' . $internal_host . $path . $query;
-
-				// Validate the resulting URL before returning it.
-				if ( filter_var( $new_url, FILTER_VALIDATE_URL ) ) {
-					return $new_url;
-				}
-				// If invalid, fall through to return original URL.
-			}
-		}
-		return $url;
-	}
-);

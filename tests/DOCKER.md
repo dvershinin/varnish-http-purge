@@ -1,12 +1,51 @@
 # Local Varnish + WordPress testbed
 
 This docker setup spins up:
-- MariaDB
-- WordPress (Apache, PHP 8.2)
+- MariaDB (port 3306, internal only)
+- WordPress with Apache on port 8080 (internal only)
 - WP-CLI
-- Varnish 7 (listening on localhost:8080)
+- Varnish 7.4 on port 6081 (internal), exposed to host via ADMIN_REVIEW_PORT
 
 The plugin in this repo is mounted into the WordPress container at `wp-content/plugins/varnish-http-purge`.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Docker Network: vhp_net                          │
+│                                                                         │
+│  ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐ │
+│  │    varnish      │      │    wordpress    │      │       db        │ │
+│  │   Varnish 7.4   │─────▶│ Apache + PHP8.2 │─────▶│  MariaDB 10.11  │ │
+│  │   port 6081     │      │    port 8080    │      │   port 3306     │ │
+│  └────────▲────────┘      └─────────────────┘      └─────────────────┘ │
+│           │                                                             │
+│  ┌────────┴────────┐                                                    │
+│  │ tester (pytest) │  All requests: http://varnish:6081                 │
+│  │ WP_URL=http://  │  WordPress installed with same URL                 │
+│  │ varnish:6081    │  (no Host header tricks needed)                    │
+│  └─────────────────┘                                                    │
+└───────────────────────────────────┬─────────────────────────────────────┘
+                                    │
+                    ADMIN_REVIEW_PORT (for human access from host)
+                                    │
+                                    ▼
+                        http://localhost:PORT/wp-admin/
+```
+
+## Port Scheme
+
+| Component | Internal Port | Host Port | Purpose |
+|-----------|---------------|-----------|---------|
+| Varnish   | 6081          | ADMIN_REVIEW_PORT | Human admin access |
+| Apache    | 8080          | (none)    | Backend only |
+| MariaDB   | 3306          | (none)    | Internal only |
+
+## URL Configuration
+
+- **WordPress site URL**: `http://varnish:6081` (internal Docker URL)
+- **pytest WP_URL**: `http://varnish:6081` (same as WordPress)
+- **Admin review**: `http://localhost:ADMIN_REVIEW_PORT/wp-admin/` (host access)
 
 ## Prereqs
 - Docker and Docker Compose
@@ -23,8 +62,6 @@ make logs       # follow logs
 make down       # stop and remove containers
 make clean      # also remove volumes
 ```
-
-Visit `http://localhost:8080` through Varnish.
 
 ## Notes
 - The plugin uses `define('VHP_VARNISH_IP', 'varnish');` via WP-config extra, so PURGE requests are sent to the `varnish` service, not to the site host.

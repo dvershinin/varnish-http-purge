@@ -6,34 +6,37 @@ Description: Minimal REST endpoints to aid e2e/pytest tests
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+// Register test CPT and taxonomy on init so they're available for all requests.
+add_action( 'init', function() {
+	register_post_type( 'book', array(
+		'label'        => 'Books',
+		'public'       => true,
+		'show_in_rest' => true,
+		'rest_base'    => 'items',
+		'supports'     => array( 'title', 'editor' ),
+		'has_archive'  => true,
+	) );
+
+	register_taxonomy( 'genre', array( 'book' ), array(
+		'label'        => 'Genres',
+		'public'       => true,
+		'show_in_rest' => true,
+		'rest_base'    => 'genres',
+		'hierarchical' => false,
+	) );
+} );
+
+// Prevent Varnish from caching test control API responses.
+add_filter( 'rest_pre_serve_request', function( $served, $result, $request ) {
+    $route = $request->get_route();
+    if ( strpos( $route, '/test/v1/' ) === 0 ) {
+        header( 'Cache-Control: no-cache, no-store, must-revalidate' );
+        header( 'Pragma: no-cache' );
+    }
+    return $served;
+}, 10, 3 );
+
 add_action( 'rest_api_init', function() {
-    // Setup a custom post type and taxonomy for testing REST base handling
-    register_rest_route( 'test/v1', '/setup-cpt', array(
-        'methods' => 'POST',
-        'callback' => function( WP_REST_Request $req ) {
-            register_post_type( 'book', array(
-                'label' => 'Books',
-                'public' => true,
-                'show_in_rest' => true,
-                'rest_base' => 'items',
-                'supports' => array( 'title', 'editor' ),
-                'has_archive' => true,
-            ) );
-
-            register_taxonomy( 'genre', array( 'book' ), array(
-                'label' => 'Genres',
-                'public' => true,
-                'show_in_rest' => true,
-                'rest_base' => 'genres',
-                'hierarchical' => false,
-            ) );
-
-            flush_rewrite_rules( false );
-            return array( 'ok' => true );
-        },
-        'permission_callback' => '__return_true',
-    ) );
-
     register_rest_route( 'test/v1', '/permalinks', array(
         'methods' => 'POST',
         'callback' => function( WP_REST_Request $req ) {
@@ -184,27 +187,6 @@ add_action( 'rest_api_init', function() {
                 return array( 'ok' => true, 'purged' => $url );
             }
             if ( class_exists('VarnishPurger') && is_numeric( $post_id ) ) {
-                // Ensure CPT and taxonomy used in tests are registered in this request
-                $ptype = get_post_type( intval( $post_id ) );
-                if ( 'book' === $ptype && ! post_type_exists( 'book' ) ) {
-                    register_post_type( 'book', array(
-                        'label' => 'Books',
-                        'public' => true,
-                        'show_in_rest' => true,
-                        'rest_base' => 'items',
-                        'supports' => array( 'title', 'editor' ),
-                        'has_archive' => true,
-                    ) );
-                }
-                if ( ! taxonomy_exists( 'genre' ) ) {
-                    register_taxonomy( 'genre', array( 'book' ), array(
-                        'label' => 'Genres',
-                        'public' => true,
-                        'show_in_rest' => true,
-                        'rest_base' => 'genres',
-                        'hierarchical' => false,
-                    ) );
-                }
                 $vp = new VarnishPurger();
                 $urls = $vp->generate_urls( intval( $post_id ) );
                 return array( 'ok' => true, 'generated' => $urls );
@@ -1156,6 +1138,59 @@ add_action( 'rest_api_init', function() {
                 'captured_count'   => count( $captured ),
                 'captured_headers' => $captured,
                 'queue_after'      => $queue_normalized,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+
+// Reset all plugin options to known defaults for test isolation.
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/reset-options', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            // Delete all plugin options first to ensure clean state.
+            $options_to_delete = array(
+                'vhp_varnish_url',
+                'vhp_varnish_ip',
+                'vhp_varnish_extra_purge_header_name',
+                'vhp_varnish_extra_purge_header_value',
+                'vhp_varnish_devmode',
+                'vhp_varnish_max_posts_before_all',
+                'vhp_varnish_use_tags',
+                'vhp_varnish_debug',
+                'vhp_varnish_purge_queue',
+                'vhp_varnish_last_queue_run',
+                'vhp_varnish_force_cron_mode',
+            );
+
+            foreach ( $options_to_delete as $opt ) {
+                delete_site_option( $opt );
+            }
+
+            // Set known default values.
+            $home_url = home_url( '/' );
+            update_site_option( 'vhp_varnish_url', $home_url );
+            update_site_option( 'vhp_varnish_ip', '' );
+            update_site_option( 'vhp_varnish_devmode', array( 'active' => false, 'expire' => 0 ) );
+            update_site_option( 'vhp_varnish_max_posts_before_all', 50 );
+            update_site_option( 'vhp_varnish_use_tags', 0 );
+            update_site_option( 'vhp_varnish_debug', array( $home_url => array() ) );
+
+            // Ensure cron mode is off by default for predictable test behavior.
+            update_site_option( 'vhp_varnish_force_cron_mode', 'off' );
+
+            return array(
+                'ok'       => true,
+                'reset'    => $options_to_delete,
+                'defaults' => array(
+                    'vhp_varnish_url'                => $home_url,
+                    'vhp_varnish_ip'                 => '',
+                    'vhp_varnish_devmode'            => array( 'active' => false, 'expire' => 0 ),
+                    'vhp_varnish_max_posts_before_all' => 50,
+                    'vhp_varnish_use_tags'           => 0,
+                    'vhp_varnish_force_cron_mode'    => 'off',
+                ),
             );
         },
         'permission_callback' => '__return_true',
