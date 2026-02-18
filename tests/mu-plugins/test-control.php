@@ -762,6 +762,29 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
+    // Test vary_results() for Vary header issues.
+    register_rest_route( 'test/v1', '/debug/vary-results', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishDebug' ) ) {
+                return new WP_Error( 'no_debug', 'VarnishDebug class not available', array( 'status' => 500 ) );
+            }
+
+            $headers = $req->get_param( 'headers' );
+            if ( ! is_array( $headers ) ) {
+                $headers = array();
+            }
+
+            $result = VarnishDebug::vary_results( $headers );
+            return array(
+                'ok'      => true,
+                'headers' => $headers,
+                'result'  => $result,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     // Test server_results() for server detection.
     register_rest_route( 'test/v1', '/debug/server-results', array(
         'methods'  => 'POST',

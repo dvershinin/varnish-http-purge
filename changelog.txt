@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.7.0 =
+* February 2026
+* New: Detection of "Vary: Accept" header which causes severe cache fragmentation. This is often added by plugins like Jetpack and provides no benefit for most WordPress sites while dramatically reducing cache hit rates.
+
 = 5.6.5 =
 * February 2026
 * Fix: Cache detection now correctly validates max-age=0 with s-maxage > 0 (proper Varnish setup)

@@ -564,6 +564,75 @@ class TestGzipResults:
 
 
 # =============================================================================
+# vary_results() tests
+# =============================================================================
+
+
+class TestVaryResults:
+    """Tests for VarnishDebug::vary_results()"""
+
+    def test_no_vary_header(self):
+        """No Vary header should return empty results."""
+        headers = {"Content-Type": "text/html"}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert len(result["result"]) == 0
+
+    def test_vary_accept_encoding_no_warning(self):
+        """Vary: Accept-Encoding should NOT trigger warning (false positive check)."""
+        headers = {"Vary": "Accept-Encoding"}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert len(result["result"]) == 0
+
+    def test_vary_accept_triggers_warning(self):
+        """Vary: Accept should trigger cache fragmentation warning."""
+        headers = {"Vary": "Accept"}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert "Vary: Accept" in result["result"]
+        assert result["result"]["Vary: Accept"]["icon"] == "warning"
+        assert "cache fragmentation" in result["result"]["Vary: Accept"]["message"]
+
+    def test_vary_accept_with_encoding(self):
+        """Vary: Accept, Accept-Encoding should still trigger warning."""
+        headers = {"Vary": "Accept, Accept-Encoding"}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert "Vary: Accept" in result["result"]
+        assert result["result"]["Vary: Accept"]["icon"] == "warning"
+
+    def test_vary_accept_case_insensitive(self):
+        """Vary detection should be case-insensitive."""
+        headers = {"Vary": "accept"}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert "Vary: Accept" in result["result"]
+
+    def test_vary_accept_language_no_warning(self):
+        """Vary: Accept-Language should NOT trigger warning (false positive check)."""
+        headers = {"Vary": "Accept-Language"}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert len(result["result"]) == 0
+
+    def test_vary_as_array(self):
+        """Vary header as array should be handled (multiple Vary headers)."""
+        headers = {"Vary": ["Accept-Encoding", "Accept, Cookie"]}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert "Vary: Accept" in result["result"]
+        assert result["result"]["Vary: Accept"]["icon"] == "warning"
+
+    def test_vary_accept_charset_no_warning(self):
+        """Vary: Accept-Charset should NOT trigger warning."""
+        headers = {"Vary": "Accept-Charset"}
+        result = call_debug_endpoint("vary-results", headers)
+        assert result["ok"] is True
+        assert len(result["result"]) == 0
+
+
+# =============================================================================
 # server_results() tests
 # =============================================================================
 
