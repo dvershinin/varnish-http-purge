@@ -436,6 +436,26 @@ class VarnishDebug {
 	}
 
 	/**
+	 * Extract s-maxage value from Cache-Control header.
+	 *
+	 * @since 5.4.1
+	 *
+	 * @access private
+	 * @static
+	 * @param string|array $cache_control - Cache-Control header value.
+	 * @return int|false The s-maxage value in seconds, or false if not found.
+	 */
+	private static function get_smaxage( $cache_control ) {
+		if ( is_array( $cache_control ) ) {
+			$cache_control = implode( ', ', $cache_control );
+		}
+		if ( preg_match( '/s-maxage\s*=\s*(\d+)/i', $cache_control, $matches ) ) {
+			return (int) $matches[1];
+		}
+		return false;
+	}
+
+	/**
 	 * Results on the Varnish calls
 	 *
 	 * Analyzes HTTP headers to determine cache status and service type.
@@ -899,10 +919,22 @@ class VarnishDebug {
 			// Max-Age is 0.
 			// Note: strpos returns 0 if found at position 0, so we must check !== false.
 			if ( false !== $max_age ) {
-				$return['max_age'] = array(
-					'icon'    => 'bad',
-					'message' => __( 'The header Cache-Control is returning "max-age=0", which means a page can be no older than 0 seconds before it needs to regenerate the cache.', 'varnish-http-purge' ),
-				);
+				$s_maxage = self::get_smaxage( $cache_control );
+
+				if ( false !== $s_maxage && $s_maxage > 0 ) {
+					// max-age=0 with s-maxage > 0 is correct for Varnish.
+					$return['max_age'] = array(
+						'icon'    => 'good',
+						// translators: %d is the s-maxage value in seconds.
+						'message' => sprintf( __( 'Cache-Control has "max-age=0" with "s-maxage=%d". This is correct: browsers revalidate while Varnish caches.', 'varnish-http-purge' ), $s_maxage ),
+					);
+				} else {
+					// max-age=0 without s-maxage is problematic.
+					$return['max_age'] = array(
+						'icon'    => 'bad',
+						'message' => __( 'The header Cache-Control is returning "max-age=0", which means a page can be no older than 0 seconds before it needs to regenerate the cache.', 'varnish-http-purge' ),
+					);
+				}
 			}
 		}
 

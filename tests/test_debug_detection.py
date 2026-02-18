@@ -306,12 +306,45 @@ class TestCacheResults:
         assert result["result"]["No Cache Header"]["icon"] == "bad"
 
     def test_cache_control_max_age_zero_detected(self):
-        """Cache-Control: max-age=0 should be flagged as bad."""
+        """Cache-Control: max-age=0 without s-maxage should be flagged as bad."""
         headers = {"Cache-Control": "public, max-age=0"}
         result = call_debug_endpoint("cache-results", headers)
         assert result["ok"] is True
         assert "max_age" in result["result"]
         assert result["result"]["max_age"]["icon"] == "bad"
+
+    def test_max_age_zero_with_smaxage_is_good(self):
+        """max-age=0 with s-maxage > 0 should be good."""
+        headers = {"Cache-Control": "max-age=0, s-maxage=31536000"}
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert "max_age" in result["result"]
+        assert result["result"]["max_age"]["icon"] == "good"
+        assert "s-maxage=31536000" in result["result"]["max_age"]["message"]
+
+    def test_max_age_zero_with_short_smaxage_is_good(self):
+        """Even short s-maxage values are valid."""
+        headers = {"Cache-Control": "max-age=0, s-maxage=3600"}
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert "max_age" in result["result"]
+        assert result["result"]["max_age"]["icon"] == "good"
+
+    def test_max_age_zero_with_smaxage_zero_is_bad(self):
+        """s-maxage=0 provides no benefit, still bad."""
+        headers = {"Cache-Control": "max-age=0, s-maxage=0"}
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert "max_age" in result["result"]
+        assert result["result"]["max_age"]["icon"] == "bad"
+
+    def test_cache_control_array_with_smaxage(self):
+        """Array format should work too."""
+        headers = {"Cache-Control": ["public", "max-age=0", "s-maxage=86400"]}
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert "max_age" in result["result"]
+        assert result["result"]["max_age"]["icon"] == "good"
 
     def test_cache_control_array_format(self):
         """Cache-Control as array should be handled correctly."""

@@ -1,5 +1,10 @@
 ## CHANGELOG
 
+= 5.6.5 =
+* February 2026
+* Fix: Cache detection now correctly validates max-age=0 with s-maxage > 0 (proper Varnish setup)
+* Dev: Added comprehensive test coverage for Cache-Control header edge cases
+
 = 5.6.4 =
 * January 2026
 * New: Added `VHP_DISABLE_CRON_PURGING` wp-config.php constant to force-disable background purging even when `DISABLE_WP_CRON` is enabled. Useful for environments with many low-traffic sites that use external cron but prefer immediate cache purges.
