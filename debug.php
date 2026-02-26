@@ -915,6 +915,32 @@ class VarnishDebug {
 	}
 
 	/**
+	 * Generate an inline Cacheability Pro suggestion link.
+	 *
+	 * Returns an empty string when CP or the free Cacheability plugin is
+	 * already active so that no recommendation is shown.
+	 *
+	 * @since 5.7.0
+	 *
+	 * @access private
+	 * @static
+	 * @param string $context Brief explanation appended after the link text.
+	 * @param string $ref     UTM ref parameter for tracking.
+	 * @return string HTML snippet or empty string.
+	 */
+	private static function cacheability_pro_suggestion( $context, $ref = 'vhp-debug' ) {
+		if ( class_exists( 'Cacheability_Pro' ) || class_exists( 'Cacheability' ) ) {
+			return '';
+		}
+
+		$url = 'https://www.getpagespeed.com/cacheability-pro?ref=' . rawurlencode( $ref );
+
+		return ' <a href="' . esc_url( $url ) . '" target="_blank" rel="noopener" style="white-space:nowrap;">'
+			. esc_html__( 'Cacheability Pro', 'varnish-http-purge' )
+			. '</a> ' . esc_html( $context );
+	}
+
+	/**
 	 * Cache
 	 *
 	 * Checking Age, Max Age, Cache Control, Pragma and more
@@ -947,7 +973,8 @@ class VarnishDebug {
 			if ( false !== $no_cache ) {
 				$return['No Cache Header'] = array(
 					'icon'    => 'bad',
-					'message' => __( 'The header Cache-Control is returning "no-cache", which means visitors will never get cached pages.', 'varnish-http-purge' ),
+					'message' => __( 'The header Cache-Control is returning "no-cache", which means visitors will never get cached pages.', 'varnish-http-purge' )
+						. self::cacheability_pro_suggestion( __( 'can override this with proper cache directives.', 'varnish-http-purge' ) ),
 				);
 			}
 
@@ -967,7 +994,8 @@ class VarnishDebug {
 					// max-age=0 without s-maxage is problematic.
 					$return['max_age'] = array(
 						'icon'    => 'bad',
-						'message' => __( 'The header Cache-Control is returning "max-age=0", which means a page can be no older than 0 seconds before it needs to regenerate the cache.', 'varnish-http-purge' ),
+						'message' => __( 'The header Cache-Control is returning "max-age=0", which means a page can be no older than 0 seconds before it needs to regenerate the cache.', 'varnish-http-purge' )
+							. self::cacheability_pro_suggestion( __( 'adds proper s-maxage headers so your cache can serve pages.', 'varnish-http-purge' ) ),
 					);
 				}
 			}
@@ -985,7 +1013,8 @@ class VarnishDebug {
 			$return['Age Headers'] = array(
 				'icon'    => 'warning',
 				// translators: %s is a number indicating how many seconds old the content is.
-				'message' => sprintf( __( 'The "Age" header is returning %s. This typically means the page was just cached (cache miss) or refreshed. If other cache indicators like X-Cache show "HIT", your cache is likely working and this will increase on subsequent requests. If this persists across multiple checks, the URL may be excluded from caching or a plugin is preventing caching.', 'varnish-http-purge' ), $age_value ),
+				'message' => sprintf( __( 'The "Age" header is returning %s. This typically means the page was just cached (cache miss) or refreshed. If other cache indicators like X-Cache show "HIT", your cache is likely working and this will increase on subsequent requests. If this persists across multiple checks, the URL may be excluded from caching or a plugin is preventing caching.', 'varnish-http-purge' ), $age_value )
+					. self::cacheability_pro_suggestion( __( 'automatically warms the cache after every purge.', 'varnish-http-purge' ) ),
 			);
 		} else {
 			$return['Age Headers'] = array(

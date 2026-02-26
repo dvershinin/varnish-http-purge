@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.6.5
+ * Version: 5.7.0
  * Requires at least: 5.0
  * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
@@ -40,7 +40,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.6.5';
+	public static $version = '5.7.0';
 
 	/**
 	 * List of URLs to be purged
@@ -320,7 +320,20 @@ class VarnishPurger {
 	 * @since 4.6
 	 */
 	public function admin_message_purge() {
-		echo '<div id="message" class="notice notice-success fade is-dismissible"><p><strong>' . esc_html__( 'Cache emptied!', 'varnish-http-purge' ) . '</strong></p></div>';
+		$message = '<p><strong>' . esc_html__( 'Cache emptied!', 'varnish-http-purge' ) . '</strong></p>';
+
+		if ( ! class_exists( 'Cacheability_Pro' ) && ! class_exists( 'Cacheability' ) ) {
+			$pro_url  = 'https://www.getpagespeed.com/cacheability-pro?ref=vhp-purge';
+			$message .= '<p><small>'
+				. esc_html__( 'Your visitors may now hit slow, uncached pages.', 'varnish-http-purge' ) . ' '
+				. '<a href="' . esc_url( $pro_url ) . '" target="_blank" rel="noopener">'
+				. esc_html__( 'Cacheability Pro', 'varnish-http-purge' )
+				. '</a> '
+				. esc_html__( 'automatically re-warms the cache after every purge.', 'varnish-http-purge' )
+				. '</small></p>';
+		}
+
+		echo '<div id="message" class="notice notice-success fade is-dismissible">' . wp_kses_post( $message ) . '</div>';
 	}
 
 	/**
@@ -340,6 +353,14 @@ class VarnishPurger {
 	public function settings_link( $links ) {
 		$settings_link = '<a href="admin.php?page=varnish-page">' . __( 'Settings', 'varnish-http-purge' ) . '</a>';
 		array_unshift( $links, $settings_link );
+
+		if ( ! class_exists( 'Cacheability_Pro' ) && ! class_exists( 'Cacheability' ) ) {
+			$pro_url = 'https://www.getpagespeed.com/cacheability-pro?ref=vhp-plugins';
+			$links[] = '<a href="' . esc_url( $pro_url ) . '" target="_blank" rel="noopener" style="color:#10b981;font-weight:700;">'
+				. esc_html__( 'Get Cache Warming', 'varnish-http-purge' )
+				. '</a>';
+		}
+
 		return $links;
 	}
 

@@ -47,6 +47,22 @@ function vhp_site_status_caching_test() {
 		}
 	}
 
+	// Build the actions markup (with optional CP link).
+	$check_caching_link = sprintf(
+		'<a href="%s">%s</a>',
+		esc_url( admin_url( 'admin.php?page=varnish-check-caching' ) ),
+		__( 'Check Caching Status', 'varnish-http-purge' )
+	);
+
+	$cp_link = '';
+	if ( ! class_exists( 'Cacheability_Pro' ) && ! class_exists( 'Cacheability' ) ) {
+		$cp_link = sprintf(
+			' | <a href="%s" target="_blank" rel="noopener">%s</a>',
+			esc_url( 'https://www.getpagespeed.com/cacheability-pro?ref=vhp-health' ),
+			__( 'Get Cache Warming', 'varnish-http-purge' )
+		);
+	}
+
 	// Defaults, all is good:
 	$result = array(
 		'label'       => __( 'Proxy Cache Purge is working', 'varnish-http-purge' ),
@@ -59,11 +75,7 @@ function vhp_site_status_caching_test() {
 			'<p>%s</p>',
 			__( 'Caching can help load your site more quickly for visitors. You\'re doing great!', 'varnish-http-purge' )
 		),
-		'actions'     => sprintf(
-			'<p><a href="%s">%s</a></p>',
-			esc_url( admin_url( 'admin.php?page=varnish-check-caching' ) ),
-			__( 'Check Caching Status', 'varnish-http-purge' )
-		),
+		'actions'     => '<p>' . $check_caching_link . $cp_link . '</p>',
 		'test'        => 'caching_plugin',
 	);
 

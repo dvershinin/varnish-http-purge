@@ -66,6 +66,28 @@ class VarnishStatus {
 		add_menu_page( __( 'Proxy Cache Purge', 'varnish-http-purge' ), __( 'Proxy Cache', 'varnish-http-purge' ), 'manage_options', 'varnish-page', array( &$this, 'settings_page' ), VarnishPurger::get_icon_svg( true, '#82878c' ), 75 );
 		add_submenu_page( 'varnish-page', __( 'Proxy Cache Purge', 'varnish-http-purge' ), __( 'Settings', 'varnish-http-purge' ), 'manage_options', 'varnish-page', array( &$this, 'settings_page' ) );
 		add_submenu_page( 'varnish-page', __( 'Check Caching', 'varnish-http-purge' ), __( 'Check Caching', 'varnish-http-purge' ), 'manage_options', 'varnish-check-caching', array( &$this, 'check_caching_page' ) );
+
+		// Cacheability Pro upsell submenu item (links externally).
+		if ( ! class_exists( 'Cacheability_Pro' ) && ! class_exists( 'Cacheability' ) ) {
+			add_submenu_page(
+				'varnish-page',
+				__( 'Get Cache Warming', 'varnish-http-purge' ),
+				'<span style="color:#10b981;">' . esc_html__( 'Get Cache Warming', 'varnish-http-purge' ) . '</span>',
+				'manage_options',
+				'vhp-cache-warming',
+				array( &$this, 'redirect_to_cacheability_pro' )
+			);
+		}
+	}
+
+	/**
+	 * Redirect the "Get Cache Warming" submenu page to the external CP URL.
+	 *
+	 * @since 5.7.0
+	 */
+	public function redirect_to_cacheability_pro() {
+		wp_redirect( 'https://www.getpagespeed.com/cacheability-pro?ref=vhp-menu' ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect
+		exit;
 	}
 
 	/**
@@ -909,6 +931,7 @@ sub vcl_recv {
 				<p><?php esc_html_e( 'The cache check page remains available to assist you in determining if pages on your site are properly cached by your server.', 'varnish-http-purge' ); ?></p>
 				<?php
 			}
+
 			?>
 		</div>
 		<style>
@@ -1469,7 +1492,19 @@ sub vcl_recv {
 							title = '<?php echo esc_js( __( 'Test Failed', 'varnish-http-purge' ) ); ?>';
 						}
 
-						summary.innerHTML = '<span class="dashicons ' + icon + '"></span><h3>' + title + '</h3><p>' + finalMessage + '</p>';
+						var cpHint = '';
+						<?php if ( ! class_exists( 'Cacheability_Pro' ) && ! class_exists( 'Cacheability' ) ) : ?>
+						if (finalStatus === 'success') {
+							cpHint = '<p style="margin-top:8px;font-size:13px;color:#50575e;">'
+								+ '<?php echo esc_js( __( 'Purging works! But the first visitor after each purge still gets a slow, uncached page.', 'varnish-http-purge' ) ); ?> '
+								+ '<a href="<?php echo esc_url( 'https://www.getpagespeed.com/cacheability-pro?ref=vhp-e2e' ); ?>" target="_blank" rel="noopener">'
+								+ '<?php echo esc_js( __( 'Cacheability Pro', 'varnish-http-purge' ) ); ?>'
+								+ '</a> <?php echo esc_js( __( 'automatically re-warms the cache.', 'varnish-http-purge' ) ); ?>'
+								+ '</p>';
+						}
+						<?php endif; ?>
+
+						summary.innerHTML = '<span class="dashicons ' + icon + '"></span><h3>' + title + '</h3><p>' + finalMessage + '</p>' + cpHint;
 
 						btn.disabled = false;
 					}

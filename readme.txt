@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.6.5
+Stable tag: 5.7.0
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -458,6 +458,10 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.7.0 (2026-02) =
+* New: Detection of "Vary: Accept" header which causes severe cache fragmentation.
+* New: Contextual Cacheability Pro recommendations in cache diagnostics, post-purge messages, plugin action links, admin menu, E2E test results, and Site Health.
 
 = 5.6.4 (2026-01) =
 * New: Added `VHP_DISABLE_CRON_PURGING` constant to force-disable background purging even when `DISABLE_WP_CRON` is enabled. Useful for low-traffic sites that use external cron but prefer immediate cache purges.
