@@ -2,7 +2,7 @@
 Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
-Tested up to: 6.9
+Tested up to: 6.3
 Stable tag: 5.7.0
 Requires PHP: 5.6
 License: Apache License 2.0
