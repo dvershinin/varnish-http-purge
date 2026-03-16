@@ -198,6 +198,12 @@ class VarnishPurger {
 
 			// AJAX handler for dismissing Cacheability Pro notice.
 			add_action( 'wp_ajax_vhp_dismiss_cacheability_notice', array( $this, 'ajax_dismiss_cacheability_notice' ) );
+
+			// WooCommerce-specific cache notice.
+			add_action( 'admin_notices', array( $this, 'woocommerce_cache_notice' ) );
+
+			// AJAX handler for dismissing WooCommerce cache notice.
+			add_action( 'wp_ajax_vhp_dismiss_woo_cache_notice', array( $this, 'ajax_dismiss_woo_cache_notice' ) );
 		}
 	}
 
@@ -805,6 +811,102 @@ class VarnishPurger {
 		}
 
 		update_user_meta( get_current_user_id(), 'vhp_dismissed_cacheability_notice', true );
+		wp_send_json_success();
+	}
+
+	/**
+	 * WooCommerce Cache Revenue Impact Notice
+	 *
+	 * Shows a dismissible admin notice on WooCommerce admin pages
+	 * highlighting the revenue impact of slow, uncached pages.
+	 * Only displays when WooCommerce is active and Cacheability Pro is not installed.
+	 *
+	 * @since 5.8.0
+	 */
+	public function woocommerce_cache_notice() {
+		// Only show if WooCommerce is active.
+		if ( ! class_exists( 'WooCommerce' ) ) {
+			return;
+		}
+
+		// Don't show if Cacheability Pro is already installed.
+		if ( class_exists( 'Cacheability_Pro' ) ) {
+			return;
+		}
+
+		// Don't show if free Cacheability is installed.
+		if ( class_exists( 'Cacheability' ) ) {
+			return;
+		}
+
+		// Don't show if user dismissed this notice.
+		if ( get_user_meta( get_current_user_id(), 'vhp_dismissed_woo_cache_notice', true ) ) {
+			return;
+		}
+
+		// Only show on WooCommerce admin pages.
+		$screen = get_current_screen();
+		if ( ! $screen ) {
+			return;
+		}
+
+		$woo_screens = array(
+			'edit-shop_order',
+			'shop_order',
+			'edit-product',
+			'product',
+			'woocommerce_page_wc-orders',
+			'woocommerce_page_wc-admin',
+			'woocommerce_page_wc-reports',
+			'woocommerce_page_wc-settings',
+		);
+
+		// Also match WooCommerce analytics screens (wc-admin based).
+		$is_woo_screen = in_array( $screen->id, $woo_screens, true )
+			|| ( isset( $screen->parent_base ) && 'woocommerce' === $screen->parent_base );
+
+		if ( ! $is_woo_screen ) {
+			return;
+		}
+
+		$pro_url = 'https://www.getpagespeed.com/cacheability-pro?ref=vhp-woo';
+
+		?>
+		<div class="notice notice-warning is-dismissible vhp-woo-cache-notice">
+			<p>
+				<strong><?php esc_html_e( 'Slow pages cost sales.', 'varnish-http-purge' ); ?></strong>
+				<?php esc_html_e( 'Slow pages cost ~7% conversion rate per second of load time. Cache purges leave your WooCommerce store uncached until the next visitor rebuilds it.', 'varnish-http-purge' ); ?>
+				<a href="<?php echo esc_url( $pro_url ); ?>" target="_blank" rel="noopener" class="button button-primary" style="margin-left:10px;">
+					<?php esc_html_e( 'Keep your store fast with Cacheability Pro', 'varnish-http-purge' ); ?>
+				</a>
+			</p>
+		</div>
+		<script>
+		jQuery(document).ready(function($) {
+			$('.vhp-woo-cache-notice').on('click', '.notice-dismiss', function() {
+				$.post(ajaxurl, {
+					action: 'vhp_dismiss_woo_cache_notice',
+					nonce: '<?php echo esc_js( wp_create_nonce( 'vhp_dismiss_woo_cache_notice' ) ); ?>'
+				});
+			});
+		});
+		</script>
+		<?php
+	}
+
+	/**
+	 * AJAX handler for dismissing WooCommerce cache notice.
+	 *
+	 * @since 5.8.0
+	 */
+	public function ajax_dismiss_woo_cache_notice() {
+		check_ajax_referer( 'vhp_dismiss_woo_cache_notice', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error();
+		}
+
+		update_user_meta( get_current_user_id(), 'vhp_dismissed_woo_cache_notice', true );
 		wp_send_json_success();
 	}
 
