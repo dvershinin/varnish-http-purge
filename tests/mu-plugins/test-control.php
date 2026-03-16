@@ -1284,3 +1284,77 @@ add_action( 'rest_api_init', function() {
     ) );
 } );
 
+// Health score endpoint: test cache hit ratio across site URLs.
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/health-score', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishStatus' ) ) {
+                return new WP_Error( 'no_status', 'VarnishStatus class not available', array( 'status' => 500 ) );
+            }
+
+            // Gather URLs to test: home + up to 5 recent posts.
+            $urls = array( home_url( '/' ) );
+            $posts = get_posts( array(
+                'numberposts'      => 5,
+                'post_type'        => 'post',
+                'post_status'      => 'publish',
+                'suppress_filters' => true,
+            ) );
+            foreach ( $posts as $p ) {
+                $urls[] = get_permalink( $p->ID );
+            }
+
+            $status  = new VarnishStatus();
+            $hits    = 0;
+            $total   = 0;
+            $results = array();
+
+            foreach ( $urls as $url ) {
+                if ( empty( $url ) ) {
+                    continue;
+                }
+
+                // Prime the cache.
+                $prime = wp_remote_get( $url, array(
+                    'timeout'   => 5,
+                    'sslverify' => false,
+                    'headers'   => array( 'Cache-Control' => 'no-cache' ),
+                ) );
+                if ( is_wp_error( $prime ) ) {
+                    $results[] = array( 'url' => $url, 'hit' => false, 'error' => $prime->get_error_message() );
+                    continue;
+                }
+
+                // Check for HIT.
+                $check = wp_remote_get( $url, array(
+                    'timeout'   => 5,
+                    'sslverify' => false,
+                ) );
+                if ( is_wp_error( $check ) ) {
+                    $results[] = array( 'url' => $url, 'hit' => false, 'error' => $check->get_error_message() );
+                    continue;
+                }
+
+                ++$total;
+                $headers = wp_remote_retrieve_headers( $check );
+                $is_hit  = $status->is_cache_hit( $headers );
+                if ( $is_hit ) {
+                    ++$hits;
+                }
+                $results[] = array( 'url' => $url, 'hit' => $is_hit );
+            }
+
+            $score = ( $total > 0 ) ? (int) round( ( $hits / $total ) * 100 ) : 0;
+
+            return array(
+                'score'   => $score,
+                'hits'    => $hits,
+                'total'   => $total,
+                'results' => $results,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );
+

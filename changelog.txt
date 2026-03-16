@@ -1,5 +1,12 @@
 ## CHANGELOG
 
+= 5.8.0 =
+* March 2026
+* New: Cache Health Score widget - tests multiple site URLs and shows a visual 0-100 score indicating cache hit ratio
+* New: WooCommerce revenue impact notice suggesting Cacheability Pro for stores without cache warming
+* Fix: Use ArrayAccess interface for PHPStan header type compatibility
+* Tested up to WordPress 6.9
+
 = 5.7.0 =
 * February 2026
 * New: Detection of "Vary: Accept" header which causes severe cache fragmentation. This is often added by plugins like Jetpack and provides no benefit for most WordPress sites while dramatically reducing cache hit rates.

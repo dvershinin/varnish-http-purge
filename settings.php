@@ -1205,17 +1205,17 @@ sub vcl_recv {
 
 			// Rewrite URL to use Varnish IP if configured, keeping the path.
 			if ( ! empty( $varniship ) ) {
-				$parsed  = wp_parse_url( $url );
-				$scheme  = isset( $parsed['scheme'] ) ? $parsed['scheme'] : 'http';
-				$path    = isset( $parsed['path'] ) ? $parsed['path'] : '/';
-				$query   = isset( $parsed['query'] ) ? '?' . $parsed['query'] : '';
-				$url     = $scheme . '://' . $varniship . $path . $query;
+				$parsed = wp_parse_url( $url );
+				$scheme = isset( $parsed['scheme'] ) ? $parsed['scheme'] : 'http';
+				$path   = isset( $parsed['path'] ) ? $parsed['path'] : '/';
+				$query  = isset( $parsed['query'] ) ? '?' . $parsed['query'] : '';
+				$url    = $scheme . '://' . $varniship . $path . $query;
 			}
 
 			// First request: prime the cache.
-			$prime_args                        = $base_args;
+			$prime_args                             = $base_args;
 			$prime_args['headers']['Cache-Control'] = 'no-cache';
-			$prime = wp_remote_get( $url, $prime_args );
+			$prime                                  = wp_remote_get( $url, $prime_args );
 			if ( is_wp_error( $prime ) ) {
 				continue;
 			}
@@ -1290,7 +1290,7 @@ sub vcl_recv {
 	 * @param array|object $headers Response headers (array or WordPress header object).
 	 * @return bool True if cache HIT detected.
 	 */
-	private function is_cache_hit( $headers ) {
+	public function is_cache_hit( $headers ) {
 		// Method to safely get a header value.
 		$get_header = function ( $name ) use ( $headers ) {
 			// WordPress header objects support ArrayAccess.
