@@ -1263,13 +1263,14 @@ sub vcl_recv {
 	 *
 	 * @since 5.8.0
 	 *
-	 * @param \WpOrg\Requests\Utility\CaseInsensitiveDictionary|array $headers Response headers.
+	 * @param array|object $headers Response headers (array or WordPress header object).
 	 * @return bool True if cache HIT detected.
 	 */
 	private function is_cache_hit( $headers ) {
 		// Method to safely get a header value.
 		$get_header = function ( $name ) use ( $headers ) {
-			if ( $headers instanceof \WpOrg\Requests\Utility\CaseInsensitiveDictionary || $headers instanceof \Requests_Utility_CaseInsensitiveDictionary ) {
+			// WordPress header objects support ArrayAccess.
+			if ( is_object( $headers ) && $headers instanceof \ArrayAccess ) {
 				$val = $headers[ $name ];
 				return is_string( $val ) ? strtolower( trim( $val ) ) : '';
 			}
