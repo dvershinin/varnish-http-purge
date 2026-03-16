@@ -1170,19 +1170,32 @@ sub vcl_recv {
 		$hits  = 0;
 		$total = 0;
 
-		$request_args = array(
+		// Resolve the request target: use configured Varnish IP if available,
+		// otherwise connect directly to the home URL host.
+		$home_parsed = wp_parse_url( home_url( '/' ) );
+		$home_host   = isset( $home_parsed['host'] ) ? $home_parsed['host'] : 'localhost';
+		$home_port   = isset( $home_parsed['port'] ) ? $home_parsed['port'] : '';
+
+		$varniship = ( VHP_VARNISH_IP !== false ) ? VHP_VARNISH_IP : get_site_option( 'vhp_varnish_ip' );
+		if ( ! empty( $varniship ) && ! is_array( $varniship ) && strpos( $varniship, ',' ) !== false ) {
+			$varniship = trim( explode( ',', $varniship )[0] );
+		} elseif ( is_array( $varniship ) ) {
+			$varniship = $varniship[0];
+		}
+
+		// Host header must match what the cache expects.
+		$host_header = $home_host;
+		if ( ! empty( $home_port ) ) {
+			$host_header .= ':' . $home_port;
+		}
+
+		$base_args = array(
 			'timeout'    => 10,
 			'sslverify'  => false,
 			'user-agent' => 'VHP-Health-Check/' . VarnishPurger::$version,
 			'headers'    => array(
-				'Cache-Control' => 'no-cache',
+				'Host' => $host_header,
 			),
-		);
-
-		$check_args = array(
-			'timeout'    => 10,
-			'sslverify'  => false,
-			'user-agent' => 'VHP-Health-Check/' . VarnishPurger::$version,
 		);
 
 		foreach ( $urls as $url ) {
@@ -1190,14 +1203,25 @@ sub vcl_recv {
 				continue;
 			}
 
+			// Rewrite URL to use Varnish IP if configured, keeping the path.
+			if ( ! empty( $varniship ) ) {
+				$parsed  = wp_parse_url( $url );
+				$scheme  = isset( $parsed['scheme'] ) ? $parsed['scheme'] : 'http';
+				$path    = isset( $parsed['path'] ) ? $parsed['path'] : '/';
+				$query   = isset( $parsed['query'] ) ? '?' . $parsed['query'] : '';
+				$url     = $scheme . '://' . $varniship . $path . $query;
+			}
+
 			// First request: prime the cache.
-			$prime = wp_remote_get( $url, $request_args );
+			$prime_args                        = $base_args;
+			$prime_args['headers']['Cache-Control'] = 'no-cache';
+			$prime = wp_remote_get( $url, $prime_args );
 			if ( is_wp_error( $prime ) ) {
 				continue;
 			}
 
 			// Second request: check for cache HIT.
-			$check = wp_remote_get( $url, $check_args );
+			$check = wp_remote_get( $url, $base_args );
 			if ( is_wp_error( $check ) ) {
 				continue;
 			}
