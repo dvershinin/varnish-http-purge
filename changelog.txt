@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.8.1 =
+* March 2026
+* New: Regex purge URLs for category, tag, and blog listing pages to properly invalidate paginated archive pages (e.g., /category/news/page/2)
+
 = 5.8.0 =
 * March 2026
 * New: Cache Health Score widget - tests multiple site URLs and shows a visual 0-100 score indicating cache hit ratio

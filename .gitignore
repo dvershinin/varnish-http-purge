@@ -17,3 +17,6 @@ __pycache__
 .vscode/
 .claude/
 CLAUDE.md
+.playwright-mcp/
+TODO.md
+TODO2.md

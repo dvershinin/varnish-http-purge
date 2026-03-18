@@ -1358,3 +1358,25 @@ add_action( 'rest_api_init', function() {
     ) );
 } );
 
+// Set WordPress options (for testing show_on_front, page_for_posts, etc.).
+add_action( 'rest_api_init', function() {
+	register_rest_route( 'test/v1', '/option', array(
+		'methods'  => 'POST',
+		'callback' => function( WP_REST_Request $req ) {
+			$name  = $req->get_param( 'name' );
+			$value = $req->get_param( 'value' );
+			if ( ! is_string( $name ) || empty( $name ) ) {
+				return new WP_Error( 'bad_name', 'name must be a non-empty string', array( 'status' => 400 ) );
+			}
+			// Only allow specific test-safe options.
+			$allowed = array( 'show_on_front', 'page_for_posts', 'page_on_front' );
+			if ( ! in_array( $name, $allowed, true ) ) {
+				return new WP_Error( 'forbidden', 'Option not allowed: ' . $name, array( 'status' => 403 ) );
+			}
+			update_option( $name, $value );
+			return array( 'ok' => true, 'name' => $name, 'value' => get_option( $name ) );
+		},
+		'permission_callback' => '__return_true',
+	) );
+} );
+

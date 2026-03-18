@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.8.0
+Stable tag: 5.8.1
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -458,6 +458,9 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.8.1 (2026-03) =
+* New: Regex purge URLs for category, tag, and blog listing pages to properly invalidate paginated archive pages (e.g., /category/news/page/2)
 
 = 5.7.0 (2026-02) =
 * New: Detection of "Vary: Accept" header which causes severe cache fragmentation.

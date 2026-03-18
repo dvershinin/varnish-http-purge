@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.8.0
+ * Version: 5.8.1
  * Requires at least: 5.0
  * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
@@ -40,7 +40,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.8.0';
+	public static $version = '5.8.1';
 
 	/**
 	 * List of URLs to be purged
@@ -2025,9 +2025,11 @@ class VarnishPurger {
 				$categories = get_the_category( $post_id );
 				if ( $categories ) {
 					foreach ( $categories as $cat ) {
+						$cat_url = get_category_link( $cat->term_id );
 						array_push(
 							$listofurls,
-							get_category_link( $cat->term_id ),
+							$cat_url,
+							$cat_url . '?vhp-regex',
 							get_rest_url() . $rest_api_route . '/categories/' . $cat->term_id . '/'
 						);
 					}
@@ -2037,9 +2039,11 @@ class VarnishPurger {
 				$tags = get_the_tags( $post_id );
 				if ( $tags ) {
 					foreach ( $tags as $tag ) {
+						$tag_url = get_tag_link( $tag->term_id );
 						array_push(
 							$listofurls,
-							get_tag_link( $tag->term_id ),
+							$tag_url,
+							$tag_url . '?vhp-regex',
 							get_rest_url() . $rest_api_route . '/tags/' . $tag->term_id . '/'
 						);
 					}
@@ -2125,7 +2129,12 @@ class VarnishPurger {
 			if ( 'page' === get_site_option( 'show_on_front' ) ) {
 				// Ensure we have a page_for_posts setting to avoid empty URL.
 				if ( get_site_option( 'page_for_posts' ) ) {
-					array_push( $listofurls, get_permalink( get_site_option( 'page_for_posts' ) ) );
+					$posts_page_url = get_permalink( get_site_option( 'page_for_posts' ) );
+					array_push(
+						$listofurls,
+						$posts_page_url,
+						$posts_page_url . '?vhp-regex'
+					);
 				}
 			}
 		} else {
@@ -2137,9 +2146,12 @@ class VarnishPurger {
 		if ( empty( $listofurls ) ) {
 			return;
 		} else {
-			// Strip off query variables
+			// Strip off query variables, but preserve ?vhp-regex for regex purges.
 			$listofurls = array_map(
 				function ( $url ) {
+					if ( false !== strpos( $url, '?vhp-regex' ) ) {
+						return strtok( $url, '?' ) . '?vhp-regex';
+					}
 					return strtok( $url, '?' );
 				},
 				$listofurls
