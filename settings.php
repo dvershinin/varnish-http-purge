@@ -447,7 +447,7 @@ sub vcl_recv {
 		} else {
 			echo '<br />';
 			esc_html_e( 'Examples: ', 'varnish-http-purge' );
-			echo '<br /><code>123.45.67.89</code><br /><code>localhost</code><br /><code>12.34.56.78, 23.45.67.89</code>';
+			echo '<br /><code>123.45.67.89</code><br /><code>localhost</code><br /><code>127.0.0.1:6081</code><br /><code>12.34.56.78, 23.45.67.89</code>';
 		}
 
 		echo '</label>';
