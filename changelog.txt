@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.8.2 =
+* March 2026
+* Fix: Health score widget now uses HTTP when connecting directly to Varnish IP, fixing false "server may block loopback requests" errors on HTTPS sites with a plain HTTP Varnish daemon
+
 = 5.8.1 =
 * March 2026
 * New: Regex purge URLs for category, tag, and blog listing pages to properly invalidate paginated archive pages (e.g., /category/news/page/2)

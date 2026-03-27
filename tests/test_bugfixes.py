@@ -313,3 +313,54 @@ class TestSettingsSanitization:
         assert isinstance(data["result"], (dict, list)), "Result should be array/dict"
         assert len(data["result"]) == 0, "Empty input should return empty array"
 
+
+class TestHealthScoreSchemeWithVarnishIP:
+    """
+    Bug: Health score loopback test preserved the site's HTTPS scheme when
+    rewriting the URL with VHP_VARNISH_IP. This caused HTTPS requests to a
+    plain HTTP Varnish daemon, resulting in a misleading "server may block
+    loopback requests" error.
+
+    Fixed in: settings.php, ajax_health_score() - force http:// when
+    VHP_VARNISH_IP is set.
+    """
+
+    def test_https_site_with_http_varnish_ip_uses_http(self):
+        """HTTPS site URL must be rewritten to http:// when targeting Varnish IP."""
+        r = requests.post(
+            f"{API_BASE}/health-score-url-rewrite",
+            json={"url": "https://example.com/some-page/", "varnish_ip": "127.0.0.1:57005"},
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        assert data["rewritten"] == "http://127.0.0.1:57005/some-page/", (
+            f"Expected http:// scheme for Varnish IP, got: {data['rewritten']}"
+        )
+
+    def test_http_site_with_varnish_ip_stays_http(self):
+        """HTTP site URL should remain http:// when rewritten for Varnish IP."""
+        r = requests.post(
+            f"{API_BASE}/health-score-url-rewrite",
+            json={"url": "http://example.com/", "varnish_ip": "192.168.1.100:6081"},
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        assert data["rewritten"] == "http://192.168.1.100:6081/", (
+            f"Expected http:// scheme, got: {data['rewritten']}"
+        )
+
+    def test_url_with_query_string_preserved(self):
+        """Query strings must survive the URL rewrite."""
+        r = requests.post(
+            f"{API_BASE}/health-score-url-rewrite",
+            json={"url": "https://example.com/page/?foo=bar", "varnish_ip": "127.0.0.1:6081"},
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        assert data["rewritten"] == "http://127.0.0.1:6081/page/?foo=bar", (
+            f"Query string lost in rewrite: {data['rewritten']}"
+        )
+

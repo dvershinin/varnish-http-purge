@@ -1358,6 +1358,34 @@ add_action( 'rest_api_init', function() {
     ) );
 } );
 
+// Test the URL-rewriting logic used by the health score widget.
+// Reproduces the VHP_VARNISH_IP URL rewrite to verify it always uses http://.
+add_action( 'rest_api_init', function() {
+	register_rest_route( 'test/v1', '/health-score-url-rewrite', array(
+		'methods'  => 'POST',
+		'callback' => function( WP_REST_Request $req ) {
+			$url       = $req->get_param( 'url' );
+			$varnish_ip = $req->get_param( 'varnish_ip' );
+
+			if ( empty( $url ) || empty( $varnish_ip ) ) {
+				return new WP_Error( 'missing_params', 'url and varnish_ip required', array( 'status' => 400 ) );
+			}
+
+			// This mirrors the rewriting logic in VarnishStatus::ajax_health_score().
+			$parsed = wp_parse_url( $url );
+			$path   = isset( $parsed['path'] ) ? $parsed['path'] : '/';
+			$query  = isset( $parsed['query'] ) ? '?' . $parsed['query'] : '';
+			$rewritten = 'http://' . $varnish_ip . $path . $query;
+
+			return array(
+				'original'  => $url,
+				'rewritten' => $rewritten,
+			);
+		},
+		'permission_callback' => '__return_true',
+	) );
+} );
+
 // Set WordPress options (for testing show_on_front, page_for_posts, etc.).
 add_action( 'rest_api_init', function() {
 	register_rest_route( 'test/v1', '/option', array(

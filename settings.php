@@ -1204,12 +1204,13 @@ sub vcl_recv {
 			}
 
 			// Rewrite URL to use Varnish IP if configured, keeping the path.
+			// Always use http:// when connecting directly to the Varnish daemon,
+			// even if the site's public URL is HTTPS.
 			if ( ! empty( $varniship ) ) {
 				$parsed = wp_parse_url( $url );
-				$scheme = isset( $parsed['scheme'] ) ? $parsed['scheme'] : 'http';
 				$path   = isset( $parsed['path'] ) ? $parsed['path'] : '/';
 				$query  = isset( $parsed['query'] ) ? '?' . $parsed['query'] : '';
-				$url    = $scheme . '://' . $varniship . $path . $query;
+				$url    = 'http://' . $varniship . $path . $query;
 			}
 
 			// First request: prime the cache.
