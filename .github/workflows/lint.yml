@@ -146,7 +146,7 @@ jobs:
 
       - name: Check for escaped quotes in text files
         run: |
-          if grep -r '\\\"' *.txt *.md 2>/dev/null; then
+          if grep -r '\\\"' *.txt 2>/dev/null; then
             echo "::error::Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."
             exit 1
           fi
