@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.8.3 =
+* April 2026
+* Fix: REST API purge URLs for custom post types with empty rest_base no longer produce double-slash URLs
+
 = 5.8.2 =
 * March 2026
 * Fix: Health score widget now uses HTTP when connecting directly to Varnish IP, fixing false "server may block loopback requests" errors on HTTPS sites with a plain HTTP Varnish daemon

@@ -68,3 +68,33 @@ def test_generated_urls_include_rest_for_cpt_and_custom_taxonomy():
         assert _contains(f"/wp-json/wp/v2/genres/{gid}/", generated), generated
 
 
+def test_no_double_slash_in_rest_url_for_empty_rest_base_cpt():
+    """CPT with rest_base='' must not produce //POST_ID/ in REST purge URLs."""
+    _disable_tags()
+
+    # Create a post of the 'widget' CPT (registered with rest_base='')
+    c = requests.post(
+        f"{API_BASE}/post",
+        json={"title": "Widget 1", "content": "Content", "type": "widget"},
+    )
+    c.raise_for_status()
+    data = c.json()
+    post_id = data["id"]
+
+    gr = requests.post(f"{API_BASE}/purge", json={"post_id": post_id})
+    gr.raise_for_status()
+    generated = gr.json().get("generated", [])
+
+    # The REST URL should fall back to the CPT name 'widget', not empty string
+    assert _contains(f"/wp-json/wp/v2/widget/{post_id}/", generated), (
+        f"Expected REST URL with CPT name fallback, got: {generated}"
+    )
+
+    # No URL in the generated list should contain a double-slash after /v2/
+    for url in generated:
+        if isinstance(url, str) and "/wp-json/" in url:
+            assert "/v2//" not in url, (
+                f"Double-slash found in REST URL: {url}"
+            )
+
+

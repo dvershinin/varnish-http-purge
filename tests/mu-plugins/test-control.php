@@ -24,6 +24,15 @@ add_action( 'init', function() {
 		'rest_base'    => 'genres',
 		'hierarchical' => false,
 	) );
+
+	register_post_type( 'widget', array(
+		'label'        => 'Widgets',
+		'public'       => true,
+		'show_in_rest' => true,
+		'rest_base'    => '',
+		'supports'     => array( 'title', 'editor' ),
+		'has_archive'  => true,
+	) );
 } );
 
 // Prevent Varnish from caching test control API responses.
