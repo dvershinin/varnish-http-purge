@@ -1,5 +1,10 @@
 ## CHANGELOG
 
+= 5.9.0 =
+* April 2026
+* New: NGINX cache-purge backend support -- uses literal * instead of .* regex for wildcard purges
+* New: VHP_PURGE_BACKEND constant and settings UI to select Varnish or NGINX backend
+
 = 5.8.3 =
 * April 2026
 * Fix: REST API purge URLs for custom post types with empty rest_base no longer produce double-slash URLs

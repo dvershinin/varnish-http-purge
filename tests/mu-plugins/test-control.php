@@ -269,6 +269,30 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
+    // Control purge backend (varnish/nginx) for tests.
+    register_rest_route( 'test/v1', '/backend-mode', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $backend = $req->get_param( 'backend' );
+            if ( ! is_string( $backend ) || ! in_array( $backend, array( 'varnish', 'nginx' ), true ) ) {
+                return new WP_Error( 'bad_backend', 'backend must be "varnish" or "nginx"', array( 'status' => 400 ) );
+            }
+            update_site_option( 'vhp_purge_backend', $backend );
+            wp_cache_delete( 'alloptions', 'options' );
+            wp_cache_delete( 'vhp_purge_backend', 'options' );
+            wp_cache_delete( 'vhp_purge_backend', 'site-options' );
+
+            $actual = get_site_option( 'vhp_purge_backend' );
+
+            return array(
+                'ok'      => true,
+                'backend' => $backend,
+                'actual'  => $actual,
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     register_rest_route( 'test/v1', '/post/(?P<id>\d+)', array(
         'methods' => 'PUT',
         'callback' => function( WP_REST_Request $req ) {
@@ -380,7 +404,7 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
-    // Inspect headers that would be sent with a PURGE request.
+    // Inspect headers and purge URL that would be sent with a PURGE request.
     register_rest_route( 'test/v1', '/purge-headers', array(
         'methods' => 'POST',
         'callback' => function( WP_REST_Request $req ) {
@@ -389,28 +413,35 @@ add_action( 'rest_api_init', function() {
                 $url = home_url( '/' );
             }
 
-            $captured = null;
-            $callback = function( $headers ) use ( &$captured ) {
+            $captured   = null;
+            $purge_url  = null;
+            $header_cb  = function( $headers ) use ( &$captured ) {
                 $captured = $headers;
                 return $headers;
             };
+            $action_cb  = function( $parsed_url, $purgeme ) use ( &$purge_url ) {
+                $purge_url = $purgeme;
+            };
 
-            add_filter( 'varnish_http_purge_headers', $callback, 9999 );
+            add_filter( 'varnish_http_purge_headers', $header_cb, 9999 );
+            add_action( 'after_purge_url', $action_cb, 9999, 2 );
 
             if ( class_exists( 'VarnishPurger' ) ) {
                 VarnishPurger::purge_url( esc_url_raw( $url ) );
             }
 
-            remove_filter( 'varnish_http_purge_headers', $callback, 9999 );
+            remove_filter( 'varnish_http_purge_headers', $header_cb, 9999 );
+            remove_action( 'after_purge_url', $action_cb, 9999 );
 
             if ( ! is_array( $captured ) ) {
                 return new WP_Error( 'no_headers', 'Failed to capture purge headers', array( 'status' => 500 ) );
             }
 
             return array(
-                'ok'      => true,
-                'url'     => $url,
-                'headers' => $captured,
+                'ok'        => true,
+                'url'       => $url,
+                'headers'   => $captured,
+                'purge_url' => $purge_url,
             );
         },
         'permission_callback' => '__return_true',
@@ -1207,6 +1238,7 @@ add_action( 'rest_api_init', function() {
                 'vhp_varnish_purge_queue',
                 'vhp_varnish_last_queue_run',
                 'vhp_varnish_force_cron_mode',
+                'vhp_purge_backend',
             );
 
             foreach ( $options_to_delete as $opt ) {
@@ -1224,6 +1256,9 @@ add_action( 'rest_api_init', function() {
 
             // Ensure cron mode is off by default for predictable test behavior.
             update_site_option( 'vhp_varnish_force_cron_mode', 'off' );
+
+            // Default purge backend is Varnish.
+            update_site_option( 'vhp_purge_backend', 'varnish' );
 
             // Clear WordPress object cache to ensure all PHP-FPM workers see the
             // updated option values on their next request. This is critical for
@@ -1246,6 +1281,7 @@ add_action( 'rest_api_init', function() {
                     'vhp_varnish_max_posts_before_all' => 50,
                     'vhp_varnish_use_tags'           => 0,
                     'vhp_varnish_force_cron_mode'    => 'off',
+                    'vhp_purge_backend'              => 'varnish',
                 ),
             );
         },

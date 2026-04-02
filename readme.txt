@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 6.9
-Stable tag: 5.8.3
+Stable tag: 5.9.0
 Requires PHP: 5.6
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -386,9 +386,11 @@ So far this plugin has been reported to successfully function on Varnish v2 thro
 
 = Does this work with NGINX caching? =
 
-It can, if you've configured NGINX caching to respect the curl PURGE request.
+Yes. Set the cache backend to NGINX via the settings page (<em>Proxy Cache > Settings > Cache Backend</em>) or add this to your wp-config.php:
 
-If this doesn't work, try setting your Varnish IP to `localhost` as NGINX requires a service control installed for the IP address to work.
+<code>define( 'VHP_PURGE_BACKEND', 'nginx' );</code>
+
+When set to NGINX, the plugin uses a literal `*` wildcard instead of Varnish's `.*` regex pattern, which is what the NGINX cache-purge module expects. You should also set your Proxy Cache IP to `localhost`.
 
 = What should my cache rules be? =
 
@@ -396,7 +398,8 @@ This is a question beyond the support of this plugin. I do not have the resource
 
 * To empty any cached data, the service will need to respect the PURGE command
 * Not all cache services set up PURGE by default
-* When flushing the whole cache, the plugin sends a PURGE command of <code>/.*</code> and sets the `X-Purge-Method` header to `regex`
+* When flushing the whole cache with Varnish backend, the plugin sends a PURGE command of <code>/.*</code> and sets the `X-Purge-Method` header to `regex`
+* When using NGINX backend, it sends <code>/*</code> instead (literal wildcard)
 * NGINX expects the IP address to be 'localhost'
 
 = How do I pass a Varnish control key or auth header? =

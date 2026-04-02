@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.8.3
+ * Version: 5.9.0
  * Requires at least: 5.0
  * Requires PHP: 5.6
  * Author: Mika Epstein, Danila Vershinin
@@ -40,7 +40,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.8.3';
+	public static $version = '5.9.0';
 
 	/**
 	 * List of URLs to be purged
@@ -117,6 +117,7 @@ class VarnishPurger {
 		defined( 'VHP_VARNISH_EXTRA_PURGE_HEADER' ) || define( 'VHP_VARNISH_EXTRA_PURGE_HEADER', false );
 		defined( 'VHP_EXCLUDED_POST_STATUSES' ) || define( 'VHP_EXCLUDED_POST_STATUSES', false );
 		defined( 'VHP_DISABLE_CRON_PURGING' ) || define( 'VHP_DISABLE_CRON_PURGING', false );
+		defined( 'VHP_PURGE_BACKEND' ) || define( 'VHP_PURGE_BACKEND', false );
 
 		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( &$this, 'settings_link' ) );
 
@@ -147,6 +148,11 @@ class VarnishPurger {
 		// Default Max posts to purge before purge all happens instead.
 		if ( ! get_site_option( 'vhp_varnish_max_posts_before_all' ) ) {
 			update_site_option( 'vhp_varnish_max_posts_before_all', 50 );
+		}
+
+		// Default purge backend is Varnish.
+		if ( ! get_site_option( 'vhp_purge_backend' ) && ! VHP_PURGE_BACKEND ) {
+			update_site_option( 'vhp_purge_backend', 'varnish' );
 		}
 
 		// Release the hounds!
@@ -414,6 +420,36 @@ class VarnishPurger {
 	 */
 	protected function is_cron_purging_enabled() {
 		return self::is_cron_purging_enabled_static();
+	}
+
+	/**
+	 * Get the configured purge backend type.
+	 *
+	 * Returns 'varnish' or 'nginx' based on the VHP_PURGE_BACKEND constant
+	 * or the vhp_purge_backend site option. Defaults to 'varnish'.
+	 *
+	 * @since 5.9.0
+	 * @return string 'varnish' or 'nginx'
+	 */
+	public static function get_purge_backend() {
+		if ( VHP_PURGE_BACKEND && in_array( VHP_PURGE_BACKEND, array( 'varnish', 'nginx' ), true ) ) {
+			return VHP_PURGE_BACKEND;
+		}
+		$stored = get_site_option( 'vhp_purge_backend', 'varnish' );
+		if ( in_array( $stored, array( 'varnish', 'nginx' ), true ) ) {
+			return $stored;
+		}
+		return 'varnish';
+	}
+
+	/**
+	 * Check if the purge backend is NGINX.
+	 *
+	 * @since 5.9.0
+	 * @return bool
+	 */
+	public static function is_nginx_backend() {
+		return 'nginx' === self::get_purge_backend();
 	}
 
 	/**
@@ -1427,8 +1463,15 @@ class VarnishPurger {
 		$x_purge_method = 'default';
 
 		if ( isset( $p['query'] ) && ( 'vhp-regex' === $p['query'] ) ) {
-			$pregex         = '.*';
-			$x_purge_method = 'regex';
+			if ( self::is_nginx_backend() ) {
+				// NGINX cache-purge module expects a literal * wildcard.
+				$pregex         = '*';
+				$x_purge_method = 'default';
+			} else {
+				// Varnish uses regex-based banning with .* pattern.
+				$pregex         = '.*';
+				$x_purge_method = 'regex';
+			}
 		}
 
 		// Build a varniship to sail. ⛵️
@@ -1605,6 +1648,20 @@ class VarnishPurger {
 		$tags = apply_filters( 'vhp_purge_tags', $tags );
 
 		if ( empty( $tags ) || ! is_array( $tags ) ) {
+			return;
+		}
+
+		// NGINX cache-purge module does not support tag-based BAN purging.
+		// Fall back to a full-site wildcard purge instead.
+		if ( self::is_nginx_backend() ) {
+			/**
+			 * Fires when tag-based purging is skipped because the backend is NGINX.
+			 *
+			 * @since 5.9.0
+			 * @param array $tags The tags that were requested for purge.
+			 */
+			do_action( 'vhp_purge_tags_skipped_nginx', $tags );
+			self::purge_url( self::the_home_url() . '/?vhp-regex' );
 			return;
 		}
 

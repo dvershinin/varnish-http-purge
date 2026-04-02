@@ -127,20 +127,22 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 			$pregex = '';
 			$wild   = '';
 
-			$is_all_flag = isset( $assoc_args['all'] );
-			$is_url_only = isset( $assoc_args['url-only'] );
-			$is_wildcard = isset( $assoc_args['wildcard'] );
+			$is_all_flag  = isset( $assoc_args['all'] );
+			$is_url_only  = isset( $assoc_args['url-only'] );
+			$is_wildcard  = isset( $assoc_args['wildcard'] );
+			$nginx_mode   = VarnishPurger::is_nginx_backend();
+			$wild_pattern = $nginx_mode ? '*' : '.*';
 
 			if ( $is_all_flag ) {
 				// Explicit full purge.
 				$url    = $this->varnish_purge->the_home_url();
 				$pregex = '/?vhp-regex';
-				$wild   = '.*';
+				$wild   = $wild_pattern;
 			} elseif ( empty( $url ) ) {
 				// No URL provided = full site purge.
 				$url    = $this->varnish_purge->the_home_url();
 				$pregex = '/?vhp-regex';
-				$wild   = '.*';
+				$wild   = $wild_pattern;
 			} elseif ( $is_url_only ) {
 				// Purge only the exact URL, no regex.
 				$url    = esc_url( $url );
@@ -152,7 +154,7 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 				$url    = esc_url( $url );
 				$url    = rtrim( $url, '/' );
 				$pregex = '/?vhp-regex';
-				$wild   = '.*';
+				$wild   = $wild_pattern;
 			}
 
 			if ( version_compare( $wp_version, '4.6', '>=' ) && ( version_compare( $cli_version, '0.25.0', '<' ) || version_compare( $cli_version, '0.25.0-alpha', 'eq' ) ) ) {

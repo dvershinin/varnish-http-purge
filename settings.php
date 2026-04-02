@@ -97,6 +97,11 @@ class VarnishStatus {
 	 * @since 4.0.2
 	 */
 	public function register_settings() {
+		// Cache Backend settings.
+		register_setting( 'vhp-settings-backend', 'vhp_purge_backend', array( &$this, 'settings_backend_sanitize' ) );
+		add_settings_section( 'vhp-settings-backend-section', __( 'Cache Backend', 'varnish-http-purge' ), array( &$this, 'options_settings_backend' ), 'varnish-backend-settings' );
+		add_settings_field( 'varnish_backend', __( 'Cache Backend Type', 'varnish-http-purge' ), array( &$this, 'settings_backend_callback' ), 'varnish-backend-settings', 'vhp-settings-backend-section' );
+
 		// Development Mode Settings.
 		register_setting( 'vhp-settings-devmode', 'vhp_varnish_devmode', array( &$this, 'settings_devmode_sanitize' ) );
 		add_settings_section( 'vhp-settings-devmode-section', __( 'Development Mode Settings', 'varnish-http-purge' ), array( &$this, 'options_settings_devmode' ), 'varnish-devmode-settings' );
@@ -123,6 +128,68 @@ class VarnishStatus {
 		add_settings_section( 'vhp-settings-purgeheader-section', __( 'Purge Headers', 'varnish-http-purge' ), array( &$this, 'options_settings_purgeheaders' ), 'varnish-purgeheader-settings' );
 		add_settings_field( 'varnish_purgeheaders_name', __( 'Set Purge Header Name', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_name_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
 		add_settings_field( 'varnish_purgeheaders_value', __( 'Set Purge Header Value', 'varnish-http-purge' ), array( &$this, 'settings_purgeheaders_value_callback' ), 'varnish-purgeheader-settings', 'vhp-settings-purgeheader-section' );
+	}
+
+	/**
+	 * Options Settings - Cache Backend
+	 *
+	 * @since 5.9.0
+	 */
+	public function options_settings_backend() {
+		?>
+		<p><a name="#configurebackend"></a><?php esc_html_e( 'Select the type of cache server your site uses. This affects how wildcard purge requests are formatted.', 'varnish-http-purge' ); ?></p>
+		<p><?php esc_html_e( 'Varnish uses regex-based purging (appending .* to paths), while NGINX expects a literal * at the end of the path.', 'varnish-http-purge' ); ?></p>
+		<p><?php echo wp_kses_post( __( 'You can also set this via <code>define( \'VHP_PURGE_BACKEND\', \'nginx\' );</code> in your wp-config file.', 'varnish-http-purge' ) ); ?></p>
+		<?php
+	}
+
+	/**
+	 * Settings Backend Callback
+	 *
+	 * @since 5.9.0
+	 */
+	public function settings_backend_callback() {
+
+		$disabled = false;
+		if ( defined( 'VHP_PURGE_BACKEND' ) && false !== VHP_PURGE_BACKEND ) {
+			$disabled = true;
+			$backend  = VHP_PURGE_BACKEND;
+		} else {
+			$backend = get_site_option( 'vhp_purge_backend', 'varnish' );
+		}
+
+		?>
+		<select id="vhp_purge_backend" name="vhp_purge_backend" <?php disabled( $disabled, true ); ?>>
+			<option value="varnish" <?php selected( $backend, 'varnish' ); ?>><?php esc_html_e( 'Varnish', 'varnish-http-purge' ); ?></option>
+			<option value="nginx" <?php selected( $backend, 'nginx' ); ?>><?php esc_html_e( 'NGINX', 'varnish-http-purge' ); ?></option>
+		</select>
+		<label for="vhp_purge_backend">&nbsp;
+		<?php
+
+		if ( $disabled ) {
+			esc_html_e( 'A cache backend has been defined in your wp-config file, so it is not editable in settings.', 'varnish-http-purge' );
+		}
+
+		echo '</label>';
+	}
+
+	/**
+	 * Sanitization and validation for Backend
+	 *
+	 * @param mixed $input - the input to be sanitized.
+	 * @since 5.9.0
+	 */
+	public function settings_backend_sanitize( $input ) {
+
+		$valid  = array( 'varnish', 'nginx' );
+		$output = 'varnish';
+
+		if ( in_array( $input, $valid, true ) ) {
+			$output = $input;
+		}
+
+		add_settings_error( 'vhp_purge_backend', 'varnish-backend', __( 'Cache backend setting updated.', 'varnish-http-purge' ), 'updated' );
+		return $output;
 	}
 
 	/**
@@ -882,6 +949,14 @@ sub vcl_recv {
 					<?php
 				}
 				?>
+				<form action="options.php" method="POST" >
+				<?php
+					settings_fields( 'vhp-settings-backend' );
+					do_settings_sections( 'varnish-backend-settings' );
+					submit_button( __( 'Save Backend Settings', 'varnish-http-purge' ), 'primary' );
+				?>
+				</form>
+
 				<form action="options.php" method="POST" >
 				<?php
 					settings_fields( 'vhp-settings-devmode' );
