@@ -1,5 +1,10 @@
 ## CHANGELOG
 
+= 5.9.1 =
+* May 2026
+* Update: Tested up to WordPress 7.0
+* Update: `Requires PHP` bumped from 5.6 to 7.4 to match WordPress 7.0's PHP floor. Sites on PHP < 7.4 will not see this update.
+
 = 5.9.0 =
 * April 2026
 * New: NGINX cache-purge backend support -- uses literal * instead of .* regex for wildcard purges

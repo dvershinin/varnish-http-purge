@@ -3,8 +3,8 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 5.9.0
-Requires PHP: 5.6
+Stable tag: 5.9.1
+Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
 
@@ -461,6 +461,10 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.9.1 (2026-05) =
+* Update: Tested up to WordPress 7.0
+* Update: `Requires PHP` bumped from 5.6 to 7.4 to match WordPress 7.0's PHP floor. Sites on PHP < 7.4 will not see this update.
 
 = 5.8.1 (2026-03) =
 * New: Regex purge URLs for category, tag, and blog listing pages to properly invalidate paginated archive pages (e.g., /category/news/page/2)
