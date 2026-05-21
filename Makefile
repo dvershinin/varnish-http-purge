@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: up down build setup test tests logs clean pytest teststack lint phpcs phpcbf phpstan php-compat validate security check-all
+.PHONY: up down build setup test tests logs clean pytest teststack lint phpcs phpcbf phpstan php-compat validate security check-all plugin-check
 
 # ============================================================================
 # Linting and Static Analysis
@@ -108,6 +108,11 @@ security:
 	else \
 		exit 1; \
 	fi
+
+plugin-check:
+	@echo "Running WordPress Plugin Check (requires the test stack to be up)..."
+	@cd tests && docker compose run --rm wpcli plugin install plugin-check --activate >/dev/null
+	@cd tests && docker compose run --rm wpcli plugin check varnish-http-purge --fields=code,type,message --format=table
 
 changelog:
 	@echo "Checking changelog..."

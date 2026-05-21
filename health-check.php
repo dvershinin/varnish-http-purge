@@ -90,7 +90,7 @@ function vhp_site_status_caching_test() {
 		$result['actions']     = sprintf(
 			'<p><a href="%s">%s</a></p>',
 			esc_url( admin_url( 'admin.php?page=varnish-page' ) ),
-			__( 'Enable Caching' )
+			__( 'Enable Caching', 'varnish-http-purge' )
 		);
 	} elseif ( ! empty( $debug_results ) && '' !== $debug_results ) {
 		$count = count( $debug_results );

@@ -206,6 +206,30 @@ jobs:
             exit 1
           fi
 
+  plugin-check:
+    name: WordPress Plugin Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Stage a clean copy that mirrors what 10up/action-wordpress-plugin-deploy
+      # ships to WP.org (filtered by .distignore). Plugin Check then runs against
+      # that — same files real users get — instead of the raw git checkout, which
+      # includes .github/, tests/, dev tooling, etc.
+      - name: Prepare dist build for Plugin Check
+        run: |
+          mkdir -p ../dist
+          rsync -a \
+            --exclude-from='.distignore' \
+            --exclude='.git/' \
+            ./ ../dist/
+
+      - name: Run Plugin Check
+        uses: WordPress/plugin-check-action@v1
+        with:
+          build-dir: '../dist'
+
   i18n:
     name: Internationalization
     runs-on: ubuntu-latest

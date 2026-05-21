@@ -12,16 +12,27 @@ bitbucket-pipelines.yml
 
 # IDE and editor files
 .cursor
+.claude
 .editorconfig
 .vscode
 .idea
 *.sublime-project
 *.sublime-workspace
 
+# Browser/automation scratch
+.playwright-cli
+.playwright-mcp
+.pytest_cache
+
 # Development tooling
 .pre-commit-config.yaml
 Makefile
 todo.txt
+TODO.md
+TODO2.md
+CLAUDE.md
+AGENTS.md
+debugger
 
 # PHP static analysis and linting
 phpstan.neon
