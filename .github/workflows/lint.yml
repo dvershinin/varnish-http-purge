@@ -217,18 +217,22 @@ jobs:
       # ships to WP.org (filtered by .distignore). Plugin Check then runs against
       # that — same files real users get — instead of the raw git checkout, which
       # includes .github/, tests/, dev tooling, etc.
+      #
+      # The dist directory must be named after the real plugin slug; Plugin Check
+      # derives PLUGIN_SLUG from basename(build-dir) and uses it for text-domain
+      # mismatch checks.
       - name: Prepare dist build for Plugin Check
         run: |
-          mkdir -p ../dist
+          mkdir -p ../varnish-http-purge-dist/varnish-http-purge
           rsync -a \
             --exclude-from='.distignore' \
             --exclude='.git/' \
-            ./ ../dist/
+            ./ ../varnish-http-purge-dist/varnish-http-purge/
 
       - name: Run Plugin Check
         uses: WordPress/plugin-check-action@v1
         with:
-          build-dir: '../dist'
+          build-dir: '../varnish-http-purge-dist/varnish-http-purge'
 
   i18n:
     name: Internationalization
