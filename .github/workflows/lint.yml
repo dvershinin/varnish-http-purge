@@ -21,10 +21,17 @@ jobs:
           tools: phpcs
           extensions: mbstring
 
+      # Retry around the composer call: packagist.org occasionally has DNS /
+      # connect-timeout flakes that fail CI through no fault of the change.
       - name: Install WordPress Coding Standards
-        run: |
-          composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
-          composer global require --dev wp-coding-standards/wpcs:"^3.0" dealerdirect/phpcodesniffer-composer-installer
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+            composer global require --dev wp-coding-standards/wpcs:"^3.0" dealerdirect/phpcodesniffer-composer-installer
 
       - name: Run PHPCS
         run: phpcs
@@ -44,7 +51,12 @@ jobs:
           extensions: mbstring
 
       - name: Install WordPress stubs
-        run: composer global require php-stubs/wordpress-stubs
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: composer global require php-stubs/wordpress-stubs
 
       - name: Run PHPStan
         run: phpstan analyse --no-progress --error-format=github
@@ -64,9 +76,14 @@ jobs:
           extensions: mbstring
 
       - name: Install PHPCompatibility
-        run: |
-          composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
-          composer global require --dev phpcompatibility/php-compatibility dealerdirect/phpcodesniffer-composer-installer
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            composer global config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+            composer global require --dev phpcompatibility/php-compatibility dealerdirect/phpcodesniffer-composer-installer
 
       - name: Extract declared PHP version from readme.txt
         id: php_version
@@ -229,8 +246,14 @@ jobs:
             --exclude='.git/' \
             ./ ../varnish-http-purge-dist/varnish-http-purge/
 
-      - name: Run Plugin Check
+      # The plugin-check-action builds its own Docker image + runs composer
+      # against packagist; that's been the source of transient CI failures
+      # (packagist DNS / connect timeouts). Run the action up to twice:
+      # `continue-on-error` on the first try, then a real retry if it failed.
+      - name: Run Plugin Check (attempt 1)
+        id: plugin_check_first
         uses: WordPress/plugin-check-action@v1
+        continue-on-error: true
         with:
           build-dir: '../varnish-http-purge-dist/varnish-http-purge'
           # Suppress only what we CAN'T fix without breaking the public API:
@@ -246,6 +269,13 @@ jobs:
           # is intentionally NOT suppressed — those should be fixed in code.
           ignore-codes: 'WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound'
 
+      - name: Run Plugin Check (retry on transient failure)
+        if: steps.plugin_check_first.outcome == 'failure'
+        uses: WordPress/plugin-check-action@v1
+        with:
+          build-dir: '../varnish-http-purge-dist/varnish-http-purge'
+          ignore-codes: 'WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound'
+
   i18n:
     name: Internationalization
     runs-on: ubuntu-latest
@@ -259,10 +289,15 @@ jobs:
           php-version: '8.2'
 
       - name: Install WP-CLI
-        run: |
-          curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-          chmod +x wp-cli.phar
-          sudo mv wp-cli.phar /usr/local/bin/wp
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 3
+          max_attempts: 3
+          retry_wait_seconds: 10
+          command: |
+            curl --fail --location -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+            chmod +x wp-cli.phar
+            sudo mv wp-cli.phar /usr/local/bin/wp
 
       - name: Check for i18n issues
         run: |
