@@ -233,6 +233,13 @@ jobs:
         uses: WordPress/plugin-check-action@v1
         with:
           build-dir: '../varnish-http-purge-dist/varnish-http-purge'
+          # `vhp_` is the plugin's documented public extension API prefix (see
+          # readme.txt "Filters" section). Plugin Check auto-derives the prefix
+          # from the text-domain `varnish_http_purge_` only, so the legitimate
+          # short prefix always reads as "non-prefixed". Renaming the public
+          # hooks/functions would break every integration in the wild. Suppress
+          # only these four codes; security, i18n, file-access checks still fire.
+          ignore-codes: 'WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound'
 
   i18n:
     name: Internationalization
