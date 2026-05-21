@@ -233,6 +233,18 @@ jobs:
         uses: WordPress/plugin-check-action@v1
         with:
           build-dir: '../varnish-http-purge-dist/varnish-http-purge'
+          # Suppress only what we CAN'T fix without breaking the public API:
+          # - NonPrefixedHooknameFound: ~22 `vhp_*` filter/action invocations
+          #   that third-party plugins/themes hook into. Renaming = breaking
+          #   change. The `vhp_` short prefix is documented in readme.txt.
+          # - NonPrefixedVariableFound: `global $purger` is a public singleton
+          #   exposed for integrators. Renaming = breaking change.
+          # - NonPrefixedConstantFound: user-facing config constants like
+          #   `VHP_VARNISH_IP` that users `define()` in wp-config.php.
+          #
+          # Everything else (security, i18n, file-access, NonPrefixedFunctionFound)
+          # is intentionally NOT suppressed — those should be fixed in code.
+          ignore-codes: 'WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound'
 
   i18n:
     name: Internationalization

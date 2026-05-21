@@ -71,7 +71,7 @@ class TestHealthCheckDebugLogHandling:
     
     The foreach loop didn't check if $debug_log was a valid array before iterating.
     
-    Fixed in: health-check.php, vhp_site_status_caching_test()
+    Fixed in: health-check.php, varnish_http_purge_site_status_caching_test()
     """
 
     def test_health_check_handles_false_debug_log(self):

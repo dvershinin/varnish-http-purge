@@ -981,8 +981,8 @@ add_action( 'rest_api_init', function() {
             $result = null;
 
             try {
-                if ( function_exists( 'vhp_site_status_caching_test' ) ) {
-                    $result = vhp_site_status_caching_test();
+                if ( function_exists( 'varnish_http_purge_site_status_caching_test' ) ) {
+                    $result = varnish_http_purge_site_status_caching_test();
                 }
             } catch ( Exception $e ) {
                 $error_occurred = true;

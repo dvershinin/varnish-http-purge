@@ -9,17 +9,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Health Check Test
-add_filter( 'site_status_tests', 'vhp_add_site_status_tests' );
+add_filter( 'site_status_tests', 'varnish_http_purge_add_site_status_tests' );
 
-function vhp_add_site_status_tests( $tests ) {
+function varnish_http_purge_add_site_status_tests( $tests ) {
 	$tests['direct']['proxy_cache_purge_caching'] = array(
 		'label' => __( 'Proxy Cache Purge Status', 'varnish-http-purge' ),
-		'test'  => 'vhp_site_status_caching_test',
+		'test'  => 'varnish_http_purge_site_status_caching_test',
 	);
 	return $tests;
 }
 
-function vhp_site_status_caching_test() {
+function varnish_http_purge_site_status_caching_test() {
 
 	// Check the debug log.
 	$debug_log     = get_site_option( 'vhp_varnish_debug' );

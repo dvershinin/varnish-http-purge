@@ -284,7 +284,8 @@ class VarnishPurger {
 		if ( ( isset( $_GET['vhp_flush_all'] ) && check_admin_referer( 'vhp-flush-all' ) ) ||
 			( isset( $_GET['vhp_flush_do'] ) && check_admin_referer( 'vhp-flush-do' ) ) ) {
 			if ( isset( $_GET['vhp_flush_do'] ) && 'devmode' === $_GET['vhp_flush_do'] && isset( $_GET['vhp_set_devmode'] ) ) {
-				VarnishDebug::devmode_toggle( esc_attr( $_GET['vhp_set_devmode'] ) );
+				$devmode_value = sanitize_text_field( wp_unslash( $_GET['vhp_set_devmode'] ) );
+				VarnishDebug::devmode_toggle( $devmode_value );
 				add_action( 'admin_notices', array( $this, 'admin_message_devmode' ) );
 			} else {
 				add_action( 'admin_notices', array( $this, 'admin_message_purge' ) );
