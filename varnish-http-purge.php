@@ -30,6 +30,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+defined( 'ABSPATH' ) || exit;
+
 /**
  * Purge Class
  *

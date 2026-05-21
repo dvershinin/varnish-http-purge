@@ -20,3 +20,8 @@ CLAUDE.md
 .playwright-mcp/
 TODO.md
 TODO2.md
+# Browser/automation scratch
+.playwright-cli/
+.playwright-mcp/
+.pytest_cache/
+.claude/

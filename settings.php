@@ -2058,7 +2058,7 @@ sub vcl_recv {
 		global $current_screen;
 
 		if ( ! empty( $current_screen->parent_base ) && strpos( $current_screen->parent_base, 'varnish-page' ) !== false ) {
-			$review_url       = 'https://wordpress.org/support/plugin/varnish-http-purge/reviews/?filter=5#new-post';
+			$review_url       = 'https://wordpress.org/support/plugin/varnish-http-purge/reviews/#new-post';
 			$getpagespeed_url = 'https://www.getpagespeed.com/';
 			$footer_text      = sprintf(
 				wp_kses(

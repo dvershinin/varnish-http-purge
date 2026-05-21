@@ -6,6 +6,8 @@
  * @since 5.4.0
  */
 
+defined( 'ABSPATH' ) || exit;
+
 class VarnishTags {
 
 	/**
