@@ -853,6 +853,38 @@ sub vcl_recv {
 	 *
 	 * @since 4.0
 	 */
+	/**
+	 * Render an inline Cacheability Pro promo banner at the top of an admin page.
+	 *
+	 * Skipped when Cacheability Pro or the free Cacheability plugin is already
+	 * active, so we never advertise a product the user already has.
+	 *
+	 * @since 5.9.2
+	 *
+	 * @param string $ref UTM ref parameter identifying the placement.
+	 * @return void
+	 */
+	private function cacheability_pro_header_banner( $ref ) {
+		if ( class_exists( 'Cacheability_Pro' ) || class_exists( 'Cacheability' ) ) {
+			return;
+		}
+
+		$pro_url = 'https://www.getpagespeed.com/cacheability-pro?ref=' . rawurlencode( $ref );
+		?>
+		<div class="notice notice-info inline vhp-cacheability-header" style="margin: 12px 0; padding: 10px 12px;">
+			<p style="margin: 0.4em 0;">
+				<strong><?php esc_html_e( '🔥 Purging is only half the job.', 'varnish-http-purge' ); ?></strong>
+				<?php esc_html_e( 'After Proxy Cache Purge clears a page, the next visitor pays for the slow, uncached load.', 'varnish-http-purge' ); ?>
+				<strong><?php esc_html_e( 'Cacheability Pro', 'varnish-http-purge' ); ?></strong>
+				<?php esc_html_e( 're-warms purged URLs automatically and tunes cache headers so more of your pages stay cacheable.', 'varnish-http-purge' ); ?>
+				<a href="<?php echo esc_url( $pro_url ); ?>" target="_blank" rel="noopener" class="button button-secondary" style="margin-left: 6px;">
+					<?php esc_html_e( 'See how it works', 'varnish-http-purge' ); ?>
+				</a>
+			</p>
+		</div>
+		<?php
+	}
+
 	public function settings_page() {
 		?>
 		<div class="wrap">
@@ -860,6 +892,8 @@ sub vcl_recv {
 			<h1><?php esc_html_e( 'Proxy Cache Purge Settings', 'varnish-http-purge' ); ?></h1>
 
 			<p><?php esc_html_e( 'Proxy Cache Purge can empty the cache for different server based caching systems, including Varnish and nginx. For most users, there should be no configuration necessary as the plugin is intended to work silently, behind the scenes.', 'varnish-http-purge' ); ?></p>
+
+			<?php $this->cacheability_pro_header_banner( 'vhp-settings-header' ); ?>
 
 			<?php $this->render_health_score_widget(); ?>
 
@@ -1422,6 +1456,8 @@ sub vcl_recv {
 
 			<?php settings_errors(); ?>
 			<h1><?php esc_html_e( 'Is Caching Working?', 'varnish-http-purge' ); ?></h1>
+
+			<?php $this->cacheability_pro_header_banner( 'vhp-debug-header' ); ?>
 
 			<nav class="nav-tab-wrapper vhp-tabs">
 				<a href="#vhp-tab-e2e" class="nav-tab nav-tab-active" data-tab="vhp-tab-e2e">

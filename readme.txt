@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 5.9.1
+Stable tag: 5.9.2
 Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -40,6 +40,12 @@ In addition, your <em>entire</em> cache will be deleted on the following actions
 Plugins can hook into the purge actions as well, to filter their own events to trigger a purge.
 
 On a multisite network using subfolders, only <strong>network admins</strong> can purge the main site.
+
+= Keep Your Cache Warm =
+
+Purging is only half the story. Once Proxy Cache Purge empties a page, the cache for that URL is gone, so the next visitor triggers a full uncached render and waits for it. On busy sites this "cache stampede" shows up as slow pages right after every update.
+
+<a href="https://www.getpagespeed.com/cacheability-pro?ref=vhp-readme">Cacheability Pro</a> is a companion plugin that closes that gap: it automatically re-warms purged URLs in the background so visitors keep hitting fast, cached responses, and it tunes your cache headers so more of your pages stay cacheable in the first place. Proxy Cache Purge handles invalidation; Cacheability Pro handles everything around it.
 
 = Development Mode =
 
@@ -461,6 +467,10 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.9.2 (2026-05) =
+* Fix: Corrected @param/@return docblock types on purge_post(), purge_url(), and related methods so they match the values actually passed and returned, removing false IDE and static-analysis warnings (reported by Sjoerd Boerrigter). No runtime behavior changes.
+* New: CI lints PHPDoc parameter/return types against WordPress function signatures to catch docblock drift automatically.
 
 = 5.9.1 (2026-05) =
 * Update: Tested up to WordPress 7.0

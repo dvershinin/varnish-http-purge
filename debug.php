@@ -82,7 +82,7 @@ class VarnishDebug {
 	 * @access public
 	 * @static
 	 * @param mixed $src - URL of CSS or JS file.
-	 * @return url
+	 * @return string
 	 * @since 4.6.0
 	 */
 	public static function nocache_cssjs( $src ) {

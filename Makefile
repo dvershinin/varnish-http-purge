@@ -1,12 +1,12 @@
 SHELL := /bin/bash
 
-.PHONY: up down build setup test tests logs clean pytest teststack lint phpcs phpcbf phpstan php-compat validate security check-all plugin-check
+.PHONY: up down build setup test tests logs clean pytest teststack lint phpcs phpcbf phpstan phpstan-phpdoc php-compat validate security check-all plugin-check
 
 # ============================================================================
 # Linting and Static Analysis
 # ============================================================================
 
-lint: phpcs phpstan
+lint: phpcs phpstan phpstan-phpdoc
 	@echo "All linting checks passed!"
 
 # Run ALL checks (like CI does)
@@ -40,6 +40,24 @@ phpstan:
 	@echo "Running PHPStan..."
 	@if command -v phpstan &> /dev/null; then \
 		phpstan analyse --no-progress --memory-limit=512M; \
+	else \
+		echo "phpstan not installed. Install with: composer global require phpstan/phpstan"; \
+	fi
+
+# PHPDoc-type linter: catches @param/@return types that disagree with reality
+# (e.g. `@param array $url` on a method whose callers pass a string). Loads the
+# WordPress function stubs and runs at level 5 so the mismatch becomes an error.
+# See phpstan-phpdoc.neon for the rationale and scope.
+phpstan-phpdoc:
+	@echo "Running PHPStan PHPDoc-type linter..."
+	@if command -v phpstan &> /dev/null; then \
+		stub="$$(composer global config home 2>/dev/null)/vendor/php-stubs/wordpress-stubs/wordpress-stubs.php"; \
+		if [ ! -f "$$stub" ]; then \
+			echo "WordPress stubs missing. Install with: composer global require php-stubs/wordpress-stubs"; \
+			exit 1; \
+		fi; \
+		mkdir -p build && ln -sf "$$stub" build/wordpress-stubs.php; \
+		phpstan analyse -c phpstan-phpdoc.neon --no-progress --memory-limit=1G; \
 	else \
 		echo "phpstan not installed. Install with: composer global require phpstan/phpstan"; \
 	fi

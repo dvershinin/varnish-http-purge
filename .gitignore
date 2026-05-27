@@ -1,5 +1,7 @@
 .htaccess
 wp-config.php
+# PHPStan PHPDoc linter: local symlink to the global wordpress-stubs file
+/build/
 wp-content/uploads/
 wp-content/blogs.dir/
 wp-content/upgrade/
