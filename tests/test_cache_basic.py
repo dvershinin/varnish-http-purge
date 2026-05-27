@@ -1,12 +1,4 @@
-import requests
-
-from conftest import WP_URL, purge_all_and_wait, wait_for_cache_hit
-
-
-def header(url: str, name: str) -> str:
-    r = requests.head(url, allow_redirects=False)
-    r.raise_for_status()
-    return r.headers.get(name)
+from conftest import WP_URL, purge_all_and_wait, wait_for_cache_hit, wait_for_cache_miss
 
 
 def test_hit_miss_cycle_home():
@@ -15,9 +7,12 @@ def test_hit_miss_cycle_home():
     # Start clean - purge and wait for cache to actually clear
     purge_all_and_wait()
 
-    # First request should be MISS (cache was just cleared)
-    h1 = header(home_url, "X-Cache")
-    assert h1 == "MISS"
+    # First request should be MISS (cache was just cleared). Poll instead of a
+    # single-shot check: on a cold/loaded stack the purge can take a beat to
+    # invalidate the home object, so an immediate read may still catch the old
+    # state. (Per the repo testing rule: never single-shot transient cache state.)
+    state = wait_for_cache_miss(home_url)
+    assert state == "MISS", f"Expected MISS after purge, got {state}"
 
     # Wait for cache to warm up (HIT)
     state = wait_for_cache_hit(home_url)
@@ -26,8 +21,8 @@ def test_hit_miss_cycle_home():
     # Purge again and wait for cache to clear
     purge_all_and_wait()
 
-    # After purge, should be MISS again
-    h3 = header(home_url, "X-Cache")
-    assert h3 == "MISS"
+    # After purge, should be MISS again (poll, same reason as above).
+    state = wait_for_cache_miss(home_url)
+    assert state == "MISS", f"Expected MISS after second purge, got {state}"
 
 

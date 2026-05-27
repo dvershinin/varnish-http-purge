@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 5.9.2
+Stable tag: 5.10.0
 Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -46,6 +46,10 @@ On a multisite network using subfolders, only <strong>network admins</strong> ca
 Purging is only half the story. Once Proxy Cache Purge empties a page, the cache for that URL is gone, so the next visitor triggers a full uncached render and waits for it. On busy sites this "cache stampede" shows up as slow pages right after every update.
 
 <a href="https://www.getpagespeed.com/cacheability-pro?ref=vhp-readme">Cacheability Pro</a> is a companion plugin that closes that gap: it automatically re-warms purged URLs in the background so visitors keep hitting fast, cached responses, and it tunes your cache headers so more of your pages stay cacheable in the first place. Proxy Cache Purge handles invalidation; Cacheability Pro handles everything around it.
+
+= Monitor Your Cache =
+
+Proxy Cache Purge keeps your cache fresh, but how often is it actually being hit? If you run your own Varnish or NGINX server, <a href="https://amplify.getpagespeed.com/?ref=vhp-amplify-readme">GetPageSpeed Amplify</a> shows your cache hit rate, request volume, and backend health over time, with a free tier. Proxy Cache Purge handles invalidation; Amplify shows you whether the cache is doing its job.
 
 = Development Mode =
 
@@ -467,6 +471,9 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.10.0 (2026-05) =
+* New: Recommendation for GetPageSpeed Amplify cache monitoring (readme + Check Caching results).
 
 = 5.9.2 (2026-05) =
 * Fix: Corrected @param/@return docblock types on purge_post(), purge_url(), and related methods so they match the values actually passed and returned, removing false IDE and static-analysis warnings (reported by Sjoerd Boerrigter). No runtime behavior changes.
