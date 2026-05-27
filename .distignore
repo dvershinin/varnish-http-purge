@@ -36,7 +36,9 @@ debugger
 
 # PHP static analysis and linting
 phpstan.neon
+phpstan-phpdoc.neon
 phpstan-bootstrap.php
+build
 phpcs.xml
 phpcs.xml.dist
 phpunit.xml

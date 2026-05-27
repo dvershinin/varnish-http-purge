@@ -1,0 +1,46 @@
+# PHPDoc-type linter (separate from the main phpstan.neon).
+#
+# Purpose: catch @param / @return type annotations that disagree with reality,
+# e.g. `@param array $url` on purge_url() (callers pass a string) or `@return url`
+# (not a real type). The main phpstan.neon runs at level 3 without WordPress
+# function signatures, so it cannot see this class of bug. This config loads the
+# WordPress stubs and runs at level 5 (argument-type checking), so a wrong
+# docblock conflicts with how callers / WP core functions actually use the value
+# and becomes a hard CI error:
+#
+#   "Parameter #1 $url of method ...::purge_url() expects array, string given"
+#   "Method ...::nocache_cssjs() has invalid return type url"
+#
+# Scoped to the two files whose public-API docblocks we guarantee. The stub file
+# is symlinked into build/ by CI / the `phpstan-phpdoc` Makefile target.
+#
+# This job intentionally only polices DOCBLOCK TYPE CORRECTNESS. The dead-code /
+# "always true|false" / redundant-defensive-check noise that level 5 surfaces on
+# this legacy code is suppressed below — those are not docblock bugs and are out
+# of scope for this linter (the main phpstan.neon owns general analysis).
+parameters:
+    level: 5
+    treatPhpDocTypesAsCertain: false
+    paths:
+        - varnish-http-purge.php
+        - debug.php
+    scanFiles:
+        - build/wordpress-stubs.php
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    ignoreErrors:
+        # --- Out of scope: dead-code / redundant-check noise (not docblock bugs) ---
+        - '#will always evaluate to (true|false)#'
+        - '#is always (true|false)\.#'
+        - '#side of && is always (true|false)#'
+        - '#in empty\(\) always exists#'
+        - '#in isset\(\) always exists and is not (nullable|falsy)#'
+        - '#in isset\(\) is not nullable#'
+        - '#Default value of the parameter#'
+        # --- Out of scope: symbols not in the WP stubs / plugin-internal classes ---
+        - '#Instantiated class VarnishTags not found#'
+        - '#Constant [A-Z_]+ not found#'
+        - '#Class (WP_CLI[a-zA-Z_]*) not found#'
+        # --- Pre-existing, unrelated to PHPDoc types (tracked separately) ---
+        - '#\$deps of function wp_register_style expects#'
+    reportUnmatchedIgnoredErrors: false

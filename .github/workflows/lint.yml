@@ -61,6 +61,42 @@ jobs:
       - name: Run PHPStan
         run: phpstan analyse --no-progress --error-format=github
 
+  phpstan-phpdoc:
+    name: PHPStan PHPDoc Types
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: phpstan
+          extensions: mbstring
+
+      - name: Install WordPress stubs
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: composer global require php-stubs/wordpress-stubs
+
+      # The PHPDoc linter scans the WordPress stub file so it knows the real
+      # signatures of WP functions (get_permalink(), wp_parse_url(), ...). Symlink
+      # it into build/ where phpstan-phpdoc.neon expects it.
+      - name: Wire WordPress stubs into build/
+        run: |
+          mkdir -p build
+          ln -sf "$(composer global config home)/vendor/php-stubs/wordpress-stubs/wordpress-stubs.php" build/wordpress-stubs.php
+
+      # Catches @param/@return types that disagree with reality (e.g. a docblock
+      # claiming `array` for a value every caller passes as a string). Scoped +
+      # level 5; see phpstan-phpdoc.neon. 1G because scanning the WP stubs is heavy.
+      - name: Run PHPStan (PHPDoc types)
+        run: phpstan analyse -c phpstan-phpdoc.neon --no-progress --error-format=github --memory-limit=1G
+
   php-compatibility:
     name: PHP Compatibility
     runs-on: ubuntu-latest
