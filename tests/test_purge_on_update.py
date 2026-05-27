@@ -97,6 +97,11 @@ def test_vhp_domains_duplicates_urls_for_alternate_domains(fresh_post):
     # Ensure URL-based purging is used for this test
     _disable_tags()
 
+    # Regression guard for wp.org topic "Incorrect logic in purge_post() strpos()"
+    # (reporter redwiregareth): the VHP_DOMAINS strpos() args were reversed, so no
+    # alternate-domain URLs were generated. Fixed in fa892274 (shipped 5.9.2). This
+    # test fails if the args are ever flipped back. Topic is closed to new replies.
+    #
     # The environment sets VHP_DOMAINS in WP config to two alternate domains.
     # When a post is updated, the plugin should add purge URLs for those domains too.
     post_id, url = fresh_post

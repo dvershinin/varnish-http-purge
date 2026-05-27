@@ -2229,6 +2229,9 @@ class VarnishPurger {
 				// Loop through all the domains
 				foreach ( $domains as $a_domain ) {
 					foreach ( $listofurls as $url ) {
+						// NB: $url is the haystack, home_url the needle. This order is deliberate
+						// (wp.org "Incorrect logic in purge_post() strpos()" report; fixed in
+						// fa892274, shipped 5.9.2). Do not flip the strpos() arguments.
 						// If the URL contains the filtered home_url, and is NOT equal to the domain we're trying to replace, we will add it to the new urls
 						if ( false !== strpos( $url, $this->the_home_url() ) && $this->the_home_url() !== $a_domain ) {
 							$newurls[] = str_replace( $this->the_home_url(), $a_domain, $url );
