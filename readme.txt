@@ -41,6 +41,12 @@ Plugins can hook into the purge actions as well, to filter their own events to t
 
 On a multisite network using subfolders, only <strong>network admins</strong> can purge the main site.
 
+= Keep Your Cache Warm =
+
+Purging is only half the story. Once Proxy Cache Purge empties a page, the cache for that URL is gone, so the next visitor triggers a full uncached render and waits for it. On busy sites this "cache stampede" shows up as slow pages right after every update.
+
+<a href="https://www.getpagespeed.com/cacheability-pro?ref=vhp-readme">Cacheability Pro</a> is a companion plugin that closes that gap: it automatically re-warms purged URLs in the background so visitors keep hitting fast, cached responses, and it tunes your cache headers so more of your pages stay cacheable in the first place. Proxy Cache Purge handles invalidation; Cacheability Pro handles everything around it.
+
 = Development Mode =
 
 If you're working on a site and need to turn off caching in one of two ways:
