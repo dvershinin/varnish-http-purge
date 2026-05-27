@@ -9,6 +9,9 @@ parameters:
         - phpstan-bootstrap.php
         # WP-CLI file requires WP-CLI stubs which we don't have
         - wp-cli.php
+        # Local-only symlink to the wordpress-stubs file used by the PHPDoc
+        # linter (phpstan-phpdoc.neon). Analysing it here blows the memory limit.
+        - build/
     scanDirectories:
         - .
     bootstrapFiles:
