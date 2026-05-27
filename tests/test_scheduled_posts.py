@@ -6,7 +6,7 @@ import requests
 
 from conftest import (
     API_BASE, WP_URL, WP_BACKEND_URL, purge_all_and_wait,
-    wait_for_cache_hit, wait_for_cache_miss,
+    wait_for_cache_hit,
 )
 
 
@@ -98,17 +98,40 @@ def test_scheduled_post_publishes_and_purges_via_cron():
 
     assert status == "publish", "Expected scheduled post to transition to publish via cron"
 
-    # After publish, the home page cache should be purged.
-    # Use wait_for_cache_miss to handle purge propagation delays.
-    # The purge is triggered by the transition_post_status hook when the post
-    # transitions from 'future' to 'publish'.
-    state = wait_for_cache_miss(home, max_attempts=30, delay=0.25)
-    assert state == "MISS", (
-        "Home page should be MISS after scheduled post publish - "
-        f"cache should have been purged by transition_post_status hook, got {state}"
+    # After publish, the transition_post_status hook purges the home cache.
+    #
+    # We deliberately do NOT assert a transient "MISS" here. That is inherently
+    # racy: any GET can re-warm home in the few milliseconds between the plugin's
+    # purge (a Varnish BAN) and our observation - e.g. a wp-cron loopback, or the
+    # plugin's own VarnishDebug double-GET of the home URL (debug.php uses
+    # wp_remote_get( the_home_url() ) twice through Varnish). When that re-warm
+    # lands first, home is a fresh HIT again and wait_for_cache_miss never sees
+    # the MISS, even though the purge worked correctly.
+    #
+    # Instead assert the user-facing guarantee, which is race-immune: once the
+    # cache is flushed and re-served, the freshly published post appears on the
+    # home page. The home cache was warmed BEFORE this post existed (above), so
+    # its title can only show up if the publish actually flushed and refreshed
+    # the cache. If the purge had NOT happened, home would keep serving the stale
+    # cached copy without this post and the poll below would time out.
+    def _home_lists_post():
+        resp = requests.get(home, timeout=10, allow_redirects=False)
+        return title in resp.text
+
+    deadline = time.time() + 15
+    appeared = False
+    while time.time() < deadline:
+        if _home_lists_post():
+            appeared = True
+            break
+        time.sleep(0.5)
+    assert appeared, (
+        "Newly published scheduled post did not appear on the home page after "
+        "publish - the transition_post_status hook should have purged the home "
+        "cache so the next render includes it."
     )
 
-    # Second request should be HIT (freshly cached).
+    # The GET above re-warmed home, so it should now be a fresh HIT.
     state = wait_for_cache_hit(home)
     assert state == "HIT", f"Home page should be HIT after being re-cached, got {state}"
 

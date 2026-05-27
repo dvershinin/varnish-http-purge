@@ -51,6 +51,53 @@ if ! wp post list --post_type=post --format=ids | grep -qE '^[0-9]+'; then
   wp post create --post_title="Hello Cache" --post_content="First content" --post_status=publish
 fi
 
+# Warm the stack before tests run.
+#
+# `make tests` reuses containers, but a FRESH stack (and every CI run) is cold:
+# OPcache hasn't compiled the plugin/theme, Apache+PHP workers are spinning up,
+# MariaDB is cold, and Varnish's cache + ban (purge) machinery is unexercised.
+# The early tests (test_cache_basic / _behavior / _tags, first alphabetically)
+# do multi-step purge -> render -> cache-state assertions and flake when the
+# FIRST render of a given page type is slow (cold OPcache compile mid-sequence).
+# A home-only warm-up isn't enough - those tests render single posts, archives,
+# feeds, and the cache-tags header path. So we compile every hot path here:
+# each page TYPE through Varnish (MISS+HIT), the ban/purge path, and a full
+# tags-mode enable -> render -> tag-purge -> disable cycle.
+echo "Warming the stack..."
+WARM_BACKEND="http://localhost:8080"
+WARM_VARNISH="http://varnish:6081"
+WARM_API="${WARM_VARNISH}/wp-json/test/v1"
+wcurl() { docker compose exec -T wordpress curl -s -o /dev/null "$@" 2>/dev/null || true; }
+# Block until the full render path serves a 200 through Varnish.
+for i in $(seq 1 20); do
+  code=$(docker compose exec -T wordpress curl -s -o /dev/null -w '%{http_code}' "${WARM_VARNISH}/" 2>/dev/null || echo 000)
+  [ "$code" = "200" ] && break
+  sleep 1
+done
+# Resolve the sample post URL so we compile the single-post template too.
+SAMPLE_URL=$(wp post list --post_type=post --field=url --posts_per_page=1 2>/dev/null | tr -d '\r' | grep -E '^https?://' | head -1)
+# Compile every page TYPE the early tests touch (backend = OPcache, then Varnish
+# MISS+HIT), and exercise the ban/purge path.
+for url in "${WARM_VARNISH}/" "${SAMPLE_URL}" "${WARM_VARNISH}/feed/" "${WARM_VARNISH}/?cat=1"; do
+  [ -z "$url" ] && continue
+  wcurl "$url"            # MISS (fill + compile template)
+  wcurl "$url"            # HIT
+done
+for i in $(seq 1 2); do
+  wcurl -X POST "${WARM_API}/purge" -H 'Content-Type: application/json' -d '{"all":true}'  # warm ban path
+  wcurl "${WARM_VARNISH}/"                                                                  # re-fill (MISS)
+done
+# Warm the cache-tags render + tag-purge code paths (test_cache_tags hits these
+# first and they are the most cold-sensitive).
+wcurl -X POST "${WARM_API}/tags-mode" -H 'Content-Type: application/json' -d '{"enabled":true}'
+[ -n "${SAMPLE_URL}" ] && wcurl "${SAMPLE_URL}"   # render with X-Cache-Tags header (compiles add_headers/get_tags)
+wcurl "${WARM_VARNISH}/"
+wcurl -X POST "${WARM_API}/purge" -H 'Content-Type: application/json' -d '{"all":true}'
+wcurl -X POST "${WARM_API}/tags-mode" -H 'Content-Type: application/json' -d '{"enabled":false}'
+# Leave home re-filled so the suite starts from a known-warm state.
+wcurl "${WARM_VARNISH}/"
+echo "Warm-up complete (home returned HTTP ${code})."
+
 # Show admin review URL if ADMIN_REVIEW_PORT is set (for human access from host)
 if [ -n "${ADMIN_REVIEW_PORT:-}" ]; then
   echo "Setup complete. Admin review at http://localhost:${ADMIN_REVIEW_PORT}/wp-admin/ (admin/admin)"

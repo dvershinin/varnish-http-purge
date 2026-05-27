@@ -1954,7 +1954,17 @@ sub vcl_recv {
 						}
 						<?php endif; ?>
 
-						summary.innerHTML = '<span class="dashicons ' + icon + '"></span><h3>' + title + '</h3><p>' + finalMessage + '</p>' + cpHint;
+						var amplifyHint = '';
+						if (finalStatus === 'success') {
+							amplifyHint = '<p style="margin-top:8px;font-size:13px;color:#50575e;">'
+								+ '<?php echo esc_js( __( 'Your cache is working. Want to keep an eye on it? If you run your own Varnish or NGINX server,', 'varnish-http-purge' ) ); ?> '
+								+ '<a href="<?php echo esc_url( 'https://amplify.getpagespeed.com/?ref=vhp-amplify-e2e' ); ?>" target="_blank" rel="noopener">'
+								+ '<?php echo esc_js( __( 'GetPageSpeed Amplify', 'varnish-http-purge' ) ); ?>'
+								+ '</a> <?php echo esc_js( __( 'tracks its hit rate and health over time (free).', 'varnish-http-purge' ) ); ?>'
+								+ '</p>';
+						}
+
+						summary.innerHTML = '<span class="dashicons ' + icon + '"></span><h3>' + title + '</h3><p>' + finalMessage + '</p>' + cpHint + amplifyHint;
 
 						btn.disabled = false;
 					}

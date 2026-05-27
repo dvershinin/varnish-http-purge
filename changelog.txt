@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.10.0 =
+* May 2026
+* New: Recommendation for GetPageSpeed Amplify cache monitoring (readme + Check Caching results).
+
 = 5.9.2 =
 * May 2026
 * Fix: Corrected @param/@return docblock types on purge_post(), purge_url(), generate_urls(), check_upgrades(), and nocache_cssjs() so they match the values actually passed and returned. Removes false IDE and static-analysis warnings reported by Sjoerd Boerrigter. No runtime behavior changes.
