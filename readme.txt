@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 5.9.1
+Stable tag: 5.9.2
 Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -467,6 +467,10 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 </code>
 
 == Changelog ==
+
+= 5.9.2 (2026-05) =
+* Fix: Corrected @param/@return docblock types on purge_post(), purge_url(), and related methods so they match the values actually passed and returned, removing false IDE and static-analysis warnings (reported by Sjoerd Boerrigter). No runtime behavior changes.
+* New: CI lints PHPDoc parameter/return types against WordPress function signatures to catch docblock drift automatically.
 
 = 5.9.1 (2026-05) =
 * Update: Tested up to WordPress 7.0
