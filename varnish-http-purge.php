@@ -303,8 +303,8 @@ class VarnishPurger {
 	 * This runs for ALL upgrades (theme, plugin, and core) to account for
 	 * the complex nature that are upgrades.
 	 *
-	 * @param  array $upgrader_object WP_Upgrader instance (unused).
-	 * @param  array $hook_extra Extra hook arguments (unused).
+	 * @param  \WP_Upgrader $upgrader_object WP_Upgrader instance (unused).
+	 * @param  array        $hook_extra Extra hook arguments (unused).
 	 * @since 4.8
 	 */
 	public function check_upgrades( $upgrader_object, $hook_extra ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter
@@ -1445,7 +1445,7 @@ class VarnishPurger {
 	 * Parse the URL for proxy proxies
 	 *
 	 * @since 1.0
-	 * @param array $url - The url to be purged.
+	 * @param string $url - The url to be purged.
 	 * @access protected
 	 */
 	public static function purge_url( $url ) {
@@ -1942,7 +1942,7 @@ class VarnishPurger {
 	 *
 	 * @access public
 	 * @param mixed $post_id - The ID of the post to be purged.
-	 * @return array()
+	 * @return array
 	 */
 	public function generate_urls( $post_id ) {
 		$this->purge_post( $post_id );
@@ -1954,7 +1954,7 @@ class VarnishPurger {
 	 * Flush the post
 	 *
 	 * @since 1.0
-	 * @param array $post_id - The ID of the post to be purged.
+	 * @param int $post_id - The ID of the post to be purged.
 	 * @access public
 	 */
 	public function purge_post( $post_id ) {
