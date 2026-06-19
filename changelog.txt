@@ -1,5 +1,12 @@
 ## CHANGELOG
 
+= 5.11.0 =
+* June 2026
+* Fix: Async purge queue now self-heals from the "stuck full-queue" state where `vhp_process_purge_queue` was silently never re-scheduled. The watchdog in `ensure_purge_queue_scheduled()` re-arms a ghost event when the queue is non-empty and `vhp_varnish_last_queue_run` is older than 5 minutes (filterable via `vhp_purge_queue_watchdog_seconds`).
+* Fix: `enqueue_urls()` now calls the scheduler even when the queue already has a full purge queued. Without this, a stuck full-queue state could not recover on subsequent `save_post` events.
+* Change: Cron-mode is no longer auto-enabled by `DISABLE_WP_CRON`. That constant means "no visitor-triggered wp-cron"; on hosts running system cron it does NOT imply WP-Cron is unreliable. Site owners who want cron-mode must opt in explicitly via `define('VHP_ENABLE_CRON_PURGING', true)`, the `vhp_varnish_cron_purging` site option, or the existing `vhp_purge_use_cron` filter.
+* New: `VHP_ENABLE_CRON_PURGING` constant and `vhp_purge_queue_watchdog_seconds` filter.
+
 = 5.10.0 =
 * May 2026
 * New: Recommendation for GetPageSpeed Amplify cache monitoring (readme + Check Caching results).

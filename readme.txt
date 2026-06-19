@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 5.10.0
+Stable tag: 5.11.0
 Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -470,7 +470,18 @@ function change_varnish_header( $default_header ) {
 add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' );
 </code>
 
+== Upgrade Notice ==
+
+= 5.11.0 =
+Cron-mode (async purge queue) is no longer auto-enabled when `DISABLE_WP_CRON` is defined. If your site relied on that behaviour and you want to keep the async queue, add `define( 'VHP_ENABLE_CRON_PURGING', true );` to wp-config.php, or enable the option in the plugin settings. Most sites running system cron will be unaffected — synchronous purges are faster and avoid the stuck-queue class of bugs this release fixes.
+
 == Changelog ==
+
+= 5.11.0 (2026-06) =
+* Fix: Async purge queue self-heals from the stuck full-queue state where `vhp_process_purge_queue` was silently never re-scheduled. Watchdog re-arms a ghost event when the queue is non-empty and `vhp_varnish_last_queue_run` is older than 5 minutes.
+* Fix: `enqueue_urls()` now ensures the cron event is scheduled even when a full purge is already queued.
+* Change: Cron-mode default flipped. `DISABLE_WP_CRON` no longer auto-enables async purging — opt in via `VHP_ENABLE_CRON_PURGING`, the `vhp_varnish_cron_purging` site option, or the `vhp_purge_use_cron` filter.
+* New: `VHP_ENABLE_CRON_PURGING` constant and `vhp_purge_queue_watchdog_seconds` filter.
 
 = 5.10.0 (2026-05) =
 * New: Recommendation for GetPageSpeed Amplify cache monitoring (readme + Check Caching results).
