@@ -63,6 +63,77 @@ def _run_queue():
     return r.json()
 
 
+def _check_cron_mode():
+    r = requests.get(f"{API_BASE}/check-cron-mode")
+    r.raise_for_status()
+    return r.json()
+
+
+def _set_cron_purging_option(value):
+    r = requests.post(
+        f"{API_BASE}/set-cron-purging-option",
+        json={"value": value} if value is not None else {},
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def test_cron_mode_disabled_by_default_under_disable_wp_cron():
+    """5.11.0 default flip: DISABLE_WP_CRON alone must NOT enable cron-mode.
+
+    The test stack defines DISABLE_WP_CRON=true. Prior to 5.11.0 that alone
+    flipped is_cron_purging_enabled_static() to true. After the fix, the user
+    must opt in explicitly via VHP_ENABLE_CRON_PURGING, the
+    vhp_varnish_cron_purging site option, or the vhp_purge_use_cron filter.
+    """
+    # Reset to default behaviour: no /cron-mode override, no site option.
+    _set_cron_mode("auto")
+    _set_cron_purging_option(None)
+    try:
+        state = _check_cron_mode()
+        assert state["disable_wp_cron_defined"] is True, (
+            "Test stack should have DISABLE_WP_CRON=true defined; got "
+            f"{state}"
+        )
+        assert state["vhp_enable_cron_purging_defined"] is False
+        assert state["vhp_disable_cron_purging_defined"] is False
+        assert state["site_option"] is False
+        assert state["force_cron_mode_option"] == ""
+        assert state["enabled"] is False, (
+            "Cron-mode is auto-enabled even though no opt-in is present "
+            f"(state={state}). This re-introduces the 5.10.0 stuck-queue "
+            "fragility on every host running DISABLE_WP_CRON + system cron."
+        )
+    finally:
+        _set_cron_mode("force_off")
+        _set_cron_purging_option(None)
+
+
+def test_cron_mode_enabled_via_site_option():
+    """vhp_varnish_cron_purging=1 must opt in even when no constant is set."""
+    _set_cron_mode("auto")
+    _set_cron_purging_option(True)
+    try:
+        state = _check_cron_mode()
+        assert state["site_option"] is True
+        assert state["enabled"] is True
+    finally:
+        _set_cron_mode("force_off")
+        _set_cron_purging_option(None)
+
+
+def test_cron_mode_enabled_via_filter():
+    """The vhp_purge_use_cron filter (driven by /cron-mode force_on) still wins."""
+    _set_cron_purging_option(None)
+    _set_cron_mode("force_on")
+    try:
+        state = _check_cron_mode()
+        assert state["force_cron_mode_option"] == "on"
+        assert state["enabled"] is True
+    finally:
+        _set_cron_mode("force_off")
+
+
 def test_cron_mode_url_purge_queue_and_process(fresh_post):
     # Force cron-mode on and start with a clean queue.
     _set_cron_mode("force_on")

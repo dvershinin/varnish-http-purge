@@ -523,6 +523,163 @@ add_action( 'rest_api_init', function() {
         },
         'permission_callback' => '__return_true',
     ) );
+
+    // Force the queue into the "stuck" state observed on prod (2026-06-07 → 2026-06-19):
+    // a non-empty queue with a stale last_queue_run and zero scheduled cron events.
+    // Used to drive the watchdog regression tests.
+    register_rest_route( 'test/v1', '/force-stuck-queue', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishPurger' ) ) {
+                return new WP_Error( 'no_purger', 'VarnishPurger class not available', array( 'status' => 500 ) );
+            }
+
+            $queue_age    = (int) $req->get_param( 'queue_age_seconds' );
+            $last_run_age = (int) $req->get_param( 'last_run_age_seconds' );
+            $full_param   = $req->get_param( 'full' );
+            $urls_param   = $req->get_param( 'urls' );
+            $clear_run    = (bool) $req->get_param( 'clear_last_run' );
+
+            if ( $queue_age <= 0 ) {
+                $queue_age = 86400;
+            }
+            if ( $last_run_age <= 0 ) {
+                $last_run_age = 87780;
+            }
+
+            $full = ( null === $full_param ) ? true : (bool) $full_param;
+            $urls = is_array( $urls_param ) ? array_values( array_map( 'strval', $urls_param ) ) : array();
+
+            $now = time();
+
+            $queue = array(
+                'version'         => VarnishPurger::PURGE_QUEUE_VERSION,
+                'full'            => $full,
+                'urls'            => $full ? array() : $urls,
+                'tags'            => array(),
+                'created_at'      => $now - $queue_age,
+                'last_updated_at' => $now - $queue_age,
+            );
+
+            update_site_option( VarnishPurger::PURGE_QUEUE_OPTION, $queue );
+
+            if ( $clear_run ) {
+                delete_site_option( 'vhp_varnish_last_queue_run' );
+            } else {
+                update_site_option( 'vhp_varnish_last_queue_run', $now - $last_run_age );
+            }
+
+            // Remove any scheduled vhp_process_purge_queue events to mirror the
+            // ghost-event prod state where wp_next_scheduled() returns false.
+            wp_clear_scheduled_hook( 'vhp_process_purge_queue' );
+
+            return array(
+                'ok'             => true,
+                'queue'          => get_site_option( VarnishPurger::PURGE_QUEUE_OPTION ),
+                'last_queue_run' => (int) get_site_option( 'vhp_varnish_last_queue_run', 0 ),
+                'next_scheduled' => wp_next_scheduled( 'vhp_process_purge_queue' ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Combined view: queue + last_queue_run + next_scheduled timestamp. Drives the
+    // watchdog tests, which need to assert on cron scheduling state directly.
+    register_rest_route( 'test/v1', '/queue-state', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            $queue = array();
+            if ( class_exists( 'VarnishPurger' ) ) {
+                $queue = get_site_option( VarnishPurger::PURGE_QUEUE_OPTION, array() );
+            }
+            if ( ! is_array( $queue ) ) {
+                $queue = array();
+            }
+
+            return array(
+                'ok'             => true,
+                'queue'          => $queue,
+                'last_queue_run' => (int) get_site_option( 'vhp_varnish_last_queue_run', 0 ),
+                'next_scheduled' => wp_next_scheduled( 'vhp_process_purge_queue' ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Trigger save_post on an existing post by calling wp_update_post(). Used by
+    // the watchdog tests to exercise the enqueue_urls() path without creating
+    // new posts.
+    register_rest_route( 'test/v1', '/save-post-trigger', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $post_id = (int) $req->get_param( 'post_id' );
+            if ( $post_id <= 0 ) {
+                return new WP_Error( 'bad_post_id', 'post_id required', array( 'status' => 400 ) );
+            }
+
+            $result = wp_update_post(
+                array(
+                    'ID'           => $post_id,
+                    'post_content' => 'watchdog-trigger ' . time(),
+                ),
+                true
+            );
+
+            if ( is_wp_error( $result ) || 0 === $result ) {
+                return new WP_Error( 'update_failed', 'wp_update_post failed', array( 'status' => 500 ) );
+            }
+
+            $post = get_post( $post_id );
+
+            return array(
+                'ok'             => true,
+                'post_id'        => $post_id,
+                'post_modified'  => $post ? $post->post_modified_gmt : null,
+                'next_scheduled' => wp_next_scheduled( 'vhp_process_purge_queue' ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Report VarnishPurger::is_cron_purging_enabled_static() — used by the
+    // cron-mode default-flip tests.
+    register_rest_route( 'test/v1', '/check-cron-mode', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            $enabled = false;
+            if ( class_exists( 'VarnishPurger' ) ) {
+                $enabled = VarnishPurger::is_cron_purging_enabled_static();
+            }
+            return array(
+                'ok'                                => true,
+                'enabled'                           => (bool) $enabled,
+                'disable_wp_cron_defined'           => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON,
+                'vhp_disable_cron_purging_defined'  => defined( 'VHP_DISABLE_CRON_PURGING' ) && VHP_DISABLE_CRON_PURGING,
+                'vhp_enable_cron_purging_defined'   => defined( 'VHP_ENABLE_CRON_PURGING' ) && VHP_ENABLE_CRON_PURGING,
+                'site_option'                       => (bool) get_site_option( 'vhp_varnish_cron_purging', false ),
+                'force_cron_mode_option'            => (string) get_site_option( 'vhp_varnish_force_cron_mode', '' ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Set/clear the vhp_varnish_cron_purging site option for the option-opt-in test.
+    register_rest_route( 'test/v1', '/set-cron-purging-option', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $value = $req->get_param( 'value' );
+            if ( null === $value ) {
+                delete_site_option( 'vhp_varnish_cron_purging' );
+            } else {
+                update_site_option( 'vhp_varnish_cron_purging', (bool) $value ? 1 : 0 );
+            }
+            return array(
+                'ok'    => true,
+                'value' => get_site_option( 'vhp_varnish_cron_purging', null ),
+            );
+        },
+        'permission_callback' => '__return_true',
+    ) );
 } );
 
 // Debug endpoint: trace what URLs would be purged for a scheduled post publish.

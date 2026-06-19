@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.10.0
+ * Version: 5.11.0
  * Requires at least: 5.0
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -43,7 +43,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.10.0';
+	public static $version = '5.11.0';
 
 	/**
 	 * List of URLs to be purged
@@ -390,12 +390,23 @@ class VarnishPurger {
 	 * @return bool
 	 */
 	public static function is_cron_purging_enabled_static() {
-		// Allow users to force-disable cron purging via wp-config.php constant.
+		// VHP_DISABLE_CRON_PURGING is the kill-switch and wins over everything else.
 		if ( defined( 'VHP_DISABLE_CRON_PURGING' ) && VHP_DISABLE_CRON_PURGING ) {
 			return false;
 		}
 
-		$enabled = ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON );
+		// Explicit opt-in via wp-config.php constant.
+		if ( defined( 'VHP_ENABLE_CRON_PURGING' ) && VHP_ENABLE_CRON_PURGING ) {
+			return (bool) apply_filters( 'vhp_purge_use_cron', true );
+		}
+
+		// Default to OFF. Cron-mode is no longer auto-enabled by DISABLE_WP_CRON
+		// because that constant means "no visitor-triggered wp-cron"; it does NOT
+		// imply WP-Cron is unreliable. On hosts running system cron, cron-mode
+		// adds latency and a self-healing surface area for zero benefit. Site
+		// owners can still opt in via the admin UI (vhp_varnish_cron_purging
+		// site option), the VHP_ENABLE_CRON_PURGING constant, or this filter.
+		$enabled = (bool) get_site_option( 'vhp_varnish_cron_purging', false );
 
 		/**
 		 * Filter whether the async purge queue + WP-Cron should be used.
@@ -411,7 +422,7 @@ class VarnishPurger {
 		 *
 		 * @since 5.5.0
 		 *
-		 * @param bool $enabled Default value based on DISABLE_WP_CRON.
+		 * @param bool $enabled Default value based on the vhp_varnish_cron_purging site option.
 		 */
 		return (bool) apply_filters( 'vhp_purge_use_cron', $enabled );
 	}
@@ -557,6 +568,14 @@ class VarnishPurger {
 	/**
 	 * Ensure a single-run cron event is scheduled to process the queue.
 	 *
+	 * Watchdog (since 5.11.0): when a vhp_process_purge_queue event is reported
+	 * scheduled but the queue is non-empty and last_queue_run is older than the
+	 * staleness threshold, unschedule the ghost event and schedule a fresh one
+	 * for "now". This protects against the prod 2026-06-07 → 2026-06-19 stuck
+	 * state where the queue's only self-healing path (! wp_next_scheduled())
+	 * never fired because either a ghost event or a never-re-armed full-queue
+	 * state stopped the chain.
+	 *
 	 * @since 5.5.0
 	 */
 	protected function ensure_purge_queue_scheduled() {
@@ -564,9 +583,35 @@ class VarnishPurger {
 			return;
 		}
 
-		if ( ! wp_next_scheduled( 'vhp_process_purge_queue' ) ) {
-			wp_schedule_single_event( time(), 'vhp_process_purge_queue' );
+		$scheduled = wp_next_scheduled( 'vhp_process_purge_queue' );
+
+		if ( $scheduled ) {
+			$queue = $this->get_purge_queue();
+			$last  = (int) get_site_option( 'vhp_varnish_last_queue_run', 0 );
+
+			/**
+			 * Filter the watchdog staleness threshold (in seconds).
+			 *
+			 * The handler clears the queue in well under a second on a healthy
+			 * site, so anything older than the threshold with a non-empty queue
+			 * is treated as evidence that the previously-scheduled event has
+			 * silently never run.
+			 *
+			 * @since 5.11.0
+			 *
+			 * @param int $stale Threshold in seconds. Default 5 minutes.
+			 */
+			$stale = (int) apply_filters( 'vhp_purge_queue_watchdog_seconds', 5 * MINUTE_IN_SECONDS );
+
+			if ( ! $this->is_purge_queue_empty( $queue ) && $last > 0 && ( time() - $last ) > $stale ) {
+				wp_unschedule_event( $scheduled, 'vhp_process_purge_queue' );
+				wp_schedule_single_event( time(), 'vhp_process_purge_queue' );
+			}
+
+			return;
 		}
+
+		wp_schedule_single_event( time(), 'vhp_process_purge_queue' );
 	}
 
 	/**
@@ -607,8 +652,13 @@ class VarnishPurger {
 
 		$queue = $this->get_purge_queue();
 
-		// If a full purge is already scheduled, no need to track individual URLs.
+		// If a full purge is already queued, no need to track individual URLs —
+		// but still verify the cron event is actually scheduled. Without this,
+		// a stuck full-queue state cannot self-heal: subsequent enqueues would
+		// return here before reaching ensure_purge_queue_scheduled(). See the
+		// 2026-06-07 prod incident documented on the watchdog method.
 		if ( ! empty( $queue['full'] ) ) {
+			$this->ensure_purge_queue_scheduled();
 			return;
 		}
 
@@ -2288,6 +2338,23 @@ class VarnishPurger {
 	}
 	// @codingStandardsIgnoreEnd
 }
+
+/**
+ * Plugin activation: seed vhp_varnish_last_queue_run so a fresh install does
+ * not have a zero last_run that the watchdog would have to special-case
+ * defensively. The watchdog itself also gates on `$last > 0`, but seeding
+ * here keeps the option populated for telemetry/audit from day one.
+ *
+ * @since 5.11.0
+ */
+register_activation_hook(
+	__FILE__,
+	function () {
+		if ( ! get_site_option( 'vhp_varnish_last_queue_run' ) ) {
+			update_site_option( 'vhp_varnish_last_queue_run', time() );
+		}
+	}
+);
 
 /**
  * Purge via WP-CLI
