@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.11.1 =
+* June 2026
+* Security: The manual "Purge Cache (This Page)" action (`vhp_flush_do`) now only purges URLs on this site's own host, and requires a capability (filter: `vhp_manual_purge_capability`, default `edit_published_posts`) in addition to the nonce. Previously a low-privileged user could reuse the purge nonce to point the server's outbound PURGE request at an arbitrary host - a blind SSRF reachability oracle. Reported privately by Austin Ginder.
+
 = 5.11.0 =
 * June 2026
 * Fix: Async purge queue now self-heals from the "stuck full-queue" state where `vhp_process_purge_queue` was silently never re-scheduled. The watchdog in `ensure_purge_queue_scheduled()` re-arms a ghost event when the queue is non-empty and `vhp_varnish_last_queue_run` is older than 5 minutes (filterable via `vhp_purge_queue_watchdog_seconds`).

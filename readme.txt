@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 5.11.0
+Stable tag: 5.11.1
 Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -472,10 +472,16 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 
 == Upgrade Notice ==
 
+= 5.11.1 =
+Security fix: the manual per-page purge action now only ever purges URLs on your own site and requires a capability in addition to the nonce. This closes a low-severity, authenticated SSRF (a blind internal-host reachability probe). Recommended for all sites that grant Author-level or multi-author access.
+
 = 5.11.0 =
 Cron-mode (async purge queue) is no longer auto-enabled when `DISABLE_WP_CRON` is defined. If your site relied on that behaviour and you want to keep the async queue, add `define( 'VHP_ENABLE_CRON_PURGING', true );` to wp-config.php, or enable the option in the plugin settings. Most sites running system cron will be unaffected — synchronous purges are faster and avoid the stuck-queue class of bugs this release fixes.
 
 == Changelog ==
+
+= 5.11.1 (2026-06) =
+* Security: The manual "Purge Cache (This Page)" action (`vhp_flush_do`) now only purges URLs on this site's own host, and requires a capability (filter: `vhp_manual_purge_capability`, default `edit_published_posts`) in addition to the nonce. Previously a low-privileged user could reuse the purge nonce to point the server's outbound PURGE request at an arbitrary host - a blind SSRF reachability oracle. Reported privately by Austin Ginder.
 
 = 5.11.0 (2026-06) =
 * Fix: Async purge queue self-heals from the stuck full-queue state where `vhp_process_purge_queue` was silently never re-scheduled. Watchdog re-arms a ghost event when the queue is non-empty and `vhp_varnish_last_queue_run` is older than 5 minutes.

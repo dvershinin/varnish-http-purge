@@ -104,6 +104,48 @@ add_action( 'rest_api_init', function() {
         'permission_callback' => '__return_true',
     ) );
 
+    // Drive the real execute_purge() vhp_flush_do handler end-to-end and report
+    // which URLs it actually attempted to purge. Used by test_ssrf_flush_do.py
+    // to verify the same-site host gate and the capability gate.
+    register_rest_route( 'test/v1', '/simulate-flush-do', array(
+        'methods' => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            if ( ! class_exists( 'VarnishPurger' ) ) {
+                return new WP_Error( 'no_purger', 'VarnishPurger not loaded', array( 'status' => 500 ) );
+            }
+            $target  = (string) $req->get_param( 'target' );
+            $as_user = $req->get_param( 'as_user' ); // omit => current user 0 (exercises the capability gate)
+            if ( null !== $as_user ) {
+                wp_set_current_user( (int) $as_user );
+            }
+            // Mint a valid nonce in-request so check_admin_referer() passes for
+            // whatever user context we are in; the test is about the host/cap
+            // gates, not nonce forgery.
+            $nonce = wp_create_nonce( 'vhp-flush-do' );
+            $_GET['vhp_flush_do'] = $target;
+            $_GET['_wpnonce']     = $nonce;
+            $_REQUEST['_wpnonce'] = $nonce;
+
+            $purged = array();
+            $cb = function( $parsed_url, $purgeme ) use ( &$purged ) {
+                $purged[] = $purgeme;
+            };
+            add_action( 'after_purge_url', $cb, 9999, 2 );
+
+            global $purger;
+            if ( ! ( $purger instanceof VarnishPurger ) ) {
+                $purger = new VarnishPurger();
+            }
+            $purger->execute_purge(); // purge_urls is empty on a REST request => takes the GET branch
+
+            remove_action( 'after_purge_url', $cb, 9999 );
+            unset( $_GET['vhp_flush_do'], $_GET['_wpnonce'], $_REQUEST['_wpnonce'] );
+
+            return array( 'target' => $target, 'purged' => $purged );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
     register_rest_route( 'test/v1', '/post', array(
         'methods' => 'POST',
         'callback' => function( WP_REST_Request $req ) {

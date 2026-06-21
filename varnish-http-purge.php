@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.11.0
+ * Version: 5.11.1
  * Requires at least: 5.0
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -43,7 +43,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.11.0';
+	public static $version = '5.11.1';
 
 	/**
 	 * List of URLs to be purged
@@ -1350,6 +1350,17 @@ class VarnishPurger {
 			// mode. Cron-based queuing only benefits batch operations (automatic
 			// purges from post saves, etc.). Single-request manual purges have no
 			// batching benefit and users expect immediate results.
+
+			// Defence in depth: require a capability to trigger a manual purge,
+			// not just a valid nonce. A nonce proves the request originated from
+			// our UI, but not that the requester is allowed to purge. The default
+			// matches the capability used to render the admin-bar purge nodes.
+			$manual_cap = apply_filters( 'vhp_manual_purge_capability', 'edit_published_posts' );
+			if ( ( isset( $_GET['vhp_flush_all'] ) || isset( $_GET['vhp_flush_do'] ) )
+				&& ! current_user_can( $manual_cap ) ) {
+				return;
+			}
+
 			if ( isset( $_GET['vhp_flush_all'] ) && check_admin_referer( 'vhp-flush-all' ) ) {
 				// Flush Cache recursive (single regex request - always immediate).
 				$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
@@ -1363,12 +1374,20 @@ class VarnishPurger {
 					// Flush Cache recursive (single regex request - always immediate).
 					$this->purge_url( $this->the_home_url() . '/?vhp-regex' );
 				} else {
-					// Flush the URL we're on (single request - always immediate).
-					$p = wp_parse_url( esc_url_raw( wp_unslash( $_GET['vhp_flush_do'] ) ) );
-					if ( ! isset( $p['host'] ) ) {
+					// Flush one specific URL (single request - always immediate),
+					// but only when it points at THIS site. The shared vhp-flush-do
+					// nonce is not bound to the URL value, so without this check a
+					// low-privileged user could reuse the nonce from the admin-bar
+					// "Purge Cache (This Page)" node to aim the outbound PURGE
+					// request at an arbitrary (e.g. internal) host - a blind SSRF
+					// reachability oracle.
+					$target_url  = esc_url_raw( wp_unslash( $_GET['vhp_flush_do'] ) );
+					$target_host = wp_parse_url( $target_url, PHP_URL_HOST );
+					$home_host   = wp_parse_url( $this->the_home_url(), PHP_URL_HOST );
+					if ( empty( $target_host ) || empty( $home_host )
+						|| 0 !== strcasecmp( $target_host, $home_host ) ) {
 						return;
 					}
-					$target_url = esc_url_raw( wp_unslash( $_GET['vhp_flush_do'] ) );
 					$this->purge_url( $target_url );
 				}
 			}
