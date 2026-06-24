@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.12.0 =
+* June 2026
+* Change: The GetPageSpeed Amplify recommendation links (readme + Check Caching results) now point to the dedicated Varnish monitoring landing page for a more relevant first impression.
+
 = 5.11.1 =
 * June 2026
 * Security: The manual "Purge Cache (This Page)" action (`vhp_flush_do`) now only purges URLs on this site's own host, and requires a capability (filter: `vhp_manual_purge_capability`, default `edit_published_posts`) in addition to the nonce. Previously a low-privileged user could reuse the purge nonce to point the server's outbound PURGE request at an arbitrary host - a blind SSRF reachability oracle. Reported privately by Austin Ginder.
