@@ -1641,7 +1641,12 @@ add_action( 'rest_api_init', function() {
 				return new WP_Error( 'bad_name', 'name must be a non-empty string', array( 'status' => 400 ) );
 			}
 			// Only allow specific test-safe options.
-			$allowed = array( 'show_on_front', 'page_for_posts', 'page_on_front' );
+			$allowed = array(
+				'show_on_front',
+				'page_for_posts',
+				'page_on_front',
+				'vhp_varnish_max_posts_before_all',
+			);
 			if ( ! in_array( $name, $allowed, true ) ) {
 				return new WP_Error( 'forbidden', 'Option not allowed: ' . $name, array( 'status' => 403 ) );
 			}
@@ -1651,4 +1656,3 @@ add_action( 'rest_api_init', function() {
 		'permission_callback' => '__return_true',
 	) );
 } );
-

@@ -33,8 +33,8 @@ sub vcl_recv {
             return (synth(200, "Banned by tags pattern"));
         }
         if (req.http.X-Purge-Method == "regex") {
-            ban("obj.http.X-Url ~ .");
-            return (synth(200, "Banned all URLs"));
+            ban("obj.http.X-Url ~ " + req.url);
+            return (synth(200, "Banned URLs matching request pattern"));
         }
         ban("obj.http.X-Url == " + req.url);
         return (synth(200, "Banned specific URL"));
@@ -118,6 +118,5 @@ sub vcl_deliver {
     }
     set resp.http.X-Cache-Hits = obj.hits;
 }
-
 
 

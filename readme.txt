@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.0
-Stable tag: 5.12.0
+Stable tag: 5.12.1
 Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -479,6 +479,9 @@ Security fix: the manual per-page purge action now only ever purges URLs on your
 Cron-mode (async purge queue) is no longer auto-enabled when `DISABLE_WP_CRON` is defined. If your site relied on that behaviour and you want to keep the async queue, add `define( 'VHP_ENABLE_CRON_PURGING', true );` to wp-config.php, or enable the option in the plugin settings. Most sites running system cron will be unaffected — synchronous purges are faster and avoid the stuck-queue class of bugs this release fixes.
 
 == Changelog ==
+
+= 5.12.1 (2026-07) =
+* Fix: Updating multipage posts now purges every numbered page instead of only page 1.
 
 = 5.12.0 (2026-06) =
 * Change: The GetPageSpeed Amplify recommendation links (readme + Check Caching results) now point to the dedicated Varnish monitoring landing page for a more relevant first impression.

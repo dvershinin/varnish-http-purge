@@ -155,7 +155,7 @@ down:
 	cd tests && docker compose down -v
 
 setup:
-	bash tests/setup.sh
+	cd tests && bash setup.sh
 
 test:
 	# Legacy shell test kept for compatibility; prefer `make tests`
@@ -212,5 +212,4 @@ clean: down
 	# Remove any leftover test-related volumes if they exist.
 	cd tests && volumes=$$(docker volume ls -q | grep -E '(wp_data|db_data)' || true); \
 		if [ -n "$$volumes" ]; then docker volume rm $$volumes; fi
-
 

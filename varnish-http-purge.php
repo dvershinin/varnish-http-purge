@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.12.0
+ * Version: 5.12.1
  * Requires at least: 5.0
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -43,7 +43,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.12.0';
+	public static $version = '5.12.1';
 
 	/**
 	 * List of URLs to be purged
@@ -2126,8 +2126,13 @@ class VarnishPurger {
 				return;
 			}
 
-			// Post URL.
-			array_push( $listofurls, get_permalink( $post_id ) );
+			// Post URL and any numbered pages created by <!--nextpage-->.
+			$post_permalink = get_permalink( $post_id );
+			$post_content   = get_post_field( 'post_content', $post_id );
+			array_push( $listofurls, $post_permalink );
+			if ( is_string( $post_content ) && false !== strpos( $post_content, '<!--nextpage-->' ) ) {
+				array_push( $listofurls, trailingslashit( $post_permalink ) . '?vhp-regex' );
+			}
 
 			/**
 			 * JSON API Permalink for the post based on type

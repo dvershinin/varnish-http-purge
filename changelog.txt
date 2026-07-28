@@ -1,5 +1,10 @@
 ## CHANGELOG
 
+= 5.12.1 =
+* July 2026
+* Fix: Updating multipage posts now purges every numbered page instead of only page 1.
+* Dev: Regex purge tests now respect the requested URL pattern, and standalone test setup runs from the correct directory.
+
 = 5.12.0 =
 * June 2026
 * Change: The GetPageSpeed Amplify recommendation links (readme + Check Caching results) now point to the dedicated Varnish monitoring landing page for a more relevant first impression.

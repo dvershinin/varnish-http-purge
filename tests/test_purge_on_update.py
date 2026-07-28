@@ -93,6 +93,88 @@ def test_post_update_triggers_miss_then_hits(fresh_post):
     assert header(r5, "X-Cache") == "HIT"
 
 
+def test_multipage_post_update_purges_all_pages(reset_plugin_options):
+    """Updating a multipage post purges every numbered page, but nothing else."""
+    _disable_tags()
+    _set_option("vhp_varnish_max_posts_before_all", "200")
+
+    marker = str(time.time())
+    content = (
+        f"Page one {marker}"
+        "<!--nextpage-->"
+        f"Page two {marker}"
+        "<!--nextpage-->"
+        f"Page three {marker}"
+    )
+    created = requests.post(
+        f"{API_BASE}/post",
+        json={
+            "title": f"Multipage purge regression {marker}",
+            "content": content,
+        },
+    )
+    created.raise_for_status()
+    post_data = created.json()
+    post_id = post_data["id"]
+    post_url = _to_container_url(post_data["url"])
+
+    unrelated = requests.post(
+        f"{API_BASE}/post",
+        json={
+            "title": f"Unrelated purge control {marker}",
+            "type": "page",
+        },
+    )
+    unrelated.raise_for_status()
+    unrelated_data = unrelated.json()
+    unrelated_id = unrelated_data["id"]
+    unrelated_url = _to_container_url(unrelated_data["url"])
+
+    page_urls = [
+        post_url,
+        f"{post_url.rstrip('/')}/2/",
+        f"{post_url.rstrip('/')}/3/",
+    ]
+
+    try:
+        for page_url in page_urls:
+            assert_cache_hit(page_url)
+        assert_cache_hit(unrelated_url)
+
+        updated_content = content.replace("Page", "Updated page")
+        updated = requests.put(
+            f"{API_BASE}/post/{post_id}",
+            json={"content": updated_content},
+        )
+        updated.raise_for_status()
+
+        unrelated_response = head(unrelated_url)
+        assert header(unrelated_response, "X-Cache") == "HIT", (
+            "Updating one post must not invalidate an unrelated cached page"
+        )
+
+        for page_url in page_urls:
+            assert_cache_miss(page_url)
+
+        generated_response = requests.post(
+            f"{API_BASE}/purge",
+            json={"post_id": post_id},
+        )
+        generated_response.raise_for_status()
+        generated = generated_response.json().get("generated", [])
+        expected_regex_url = f"{post_url.rstrip('/')}/?vhp-regex"
+        assert expected_regex_url in generated, generated
+    finally:
+        requests.post(
+            f"{API_BASE}/delete-post",
+            json={"post_id": post_id},
+        )
+        requests.post(
+            f"{API_BASE}/delete-post",
+            json={"post_id": unrelated_id},
+        )
+
+
 def test_vhp_domains_duplicates_urls_for_alternate_domains(fresh_post):
     # Ensure URL-based purging is used for this test
     _disable_tags()
@@ -239,5 +321,4 @@ def test_category_pages_include_regex_purge_urls(fresh_post):
         f"Expected regex purge URL for each category. "
         f"Base: {cat_base_urls}, Regex: {cat_regex_urls}"
     )
-
 
