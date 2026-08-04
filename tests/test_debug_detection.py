@@ -346,6 +346,53 @@ class TestCacheResults:
         assert "max_age" in result["result"]
         assert result["result"]["max_age"]["icon"] == "good"
 
+    def test_max_age_zero_with_cache_hit_evidence_is_warning(self):
+        """A proxy that ate s-maxage but proves it is caching should not be an error."""
+        headers = {
+            "Cache-Control": "max-age=0, public",
+            "X-Cache": "HIT",
+            "X-Cache-Hits": "17",
+            "Age": "956",
+        }
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert "max_age" in result["result"]
+        assert result["result"]["max_age"]["icon"] == "warning"
+        assert "X-Cache: HIT" in result["result"]["max_age"]["message"]
+        assert "Age: 956" in result["result"]["max_age"]["message"]
+
+    def test_max_age_zero_with_age_only_is_warning(self):
+        """A positive Age alone proves a shared cache stored the response."""
+        headers = {"Cache-Control": "max-age=0", "Age": "120"}
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert result["result"]["max_age"]["icon"] == "warning"
+
+    def test_max_age_zero_with_chained_cache_hits_is_warning(self):
+        """Chained proxies report one counter per hop; any non-zero hop counts."""
+        headers = {"Cache-Control": "max-age=0", "X-Cache-Hits": "0, 19"}
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert result["result"]["max_age"]["icon"] == "warning"
+        assert "X-Cache-Hits: 19" in result["result"]["max_age"]["message"]
+
+    def test_max_age_zero_with_cache_miss_stays_bad(self):
+        """A miss with no age is not evidence of caching."""
+        headers = {"Cache-Control": "max-age=0", "X-Cache": "MISS", "Age": "0"}
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert result["result"]["max_age"]["icon"] == "bad"
+
+    def test_max_age_zero_with_array_cache_hit_is_warning(self):
+        """Hit indicators in array form should be recognised too."""
+        headers = {
+            "Cache-Control": ["public", "max-age=0"],
+            "X-Cache": ["MISS", "HIT"],
+        }
+        result = call_debug_endpoint("cache-results", headers)
+        assert result["ok"] is True
+        assert result["result"]["max_age"]["icon"] == "warning"
+
     def test_cache_control_array_format(self):
         """Cache-Control as array should be handled correctly."""
         headers = {"Cache-Control": ["public", "max-age=0"]}

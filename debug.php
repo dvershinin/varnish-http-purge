@@ -456,6 +456,56 @@ class VarnishDebug {
 	}
 
 	/**
+	 * Detect evidence that a shared (proxy) cache is actively serving this response.
+	 *
+	 * Some proxies -- notably managed Varnish tiers -- consume the "s-maxage"
+	 * directive and strip it before the response reaches the client. The debugger
+	 * then sees "max-age=0" with no "s-maxage" and cannot tell a correctly
+	 * configured origin apart from a broken one. Cache hit indicators left in the
+	 * response are the tiebreaker.
+	 *
+	 * @since 5.12.2
+	 *
+	 * @access private
+	 * @static
+	 * @param array|object $headers - Headers collection.
+	 * @return array List of human readable evidence strings, empty when there is none.
+	 */
+	private static function shared_cache_evidence( $headers ) {
+		$evidence = array();
+
+		// Hit indicators from the usual proxy vendors.
+		foreach ( array( 'X-Cache', 'X-Cache-Status', 'X-Proxy-Cache', 'X-Varnish-Cache' ) as $name ) {
+			$value = self::get_header( $headers, $name );
+			if ( null === $value ) {
+				continue;
+			}
+			$value = is_array( $value ) ? implode( ', ', $value ) : $value;
+			if ( stripos( $value, 'hit' ) !== false ) {
+				$evidence[] = $name . ': ' . $value;
+			}
+		}
+
+		// Counters and timers that only advance while a shared cache serves the page.
+		foreach ( array( 'Age', 'X-Cache-Age', 'X-Cache-Hits' ) as $name ) {
+			$value = self::get_header( $headers, $name );
+			if ( null === $value ) {
+				continue;
+			}
+			$value = is_array( $value ) ? implode( ', ', $value ) : $value;
+			// Chained caches report one number per hop, e.g. "0, 956". Any hop counts.
+			if ( preg_match_all( '/\d+/', $value, $matches ) ) {
+				$highest = max( array_map( 'intval', $matches[0] ) );
+				if ( $highest > 0 ) {
+					$evidence[] = $name . ': ' . $highest;
+				}
+			}
+		}
+
+		return $evidence;
+	}
+
+	/**
 	 * Results on the Varnish calls
 	 *
 	 * Analyzes HTTP headers to determine cache status and service type.
@@ -991,12 +1041,24 @@ class VarnishDebug {
 						'message' => sprintf( __( 'Cache-Control has "max-age=0" with "s-maxage=%d". This is correct: browsers revalidate while Varnish caches.', 'varnish-http-purge' ), $s_maxage ),
 					);
 				} else {
-					// max-age=0 without s-maxage is problematic.
-					$return['max_age'] = array(
-						'icon'    => 'bad',
-						'message' => __( 'The header Cache-Control is returning "max-age=0", which means a page can be no older than 0 seconds before it needs to regenerate the cache.', 'varnish-http-purge' )
-							. self::cacheability_pro_suggestion( __( 'adds proper s-maxage headers so your cache can serve pages.', 'varnish-http-purge' ) ),
-					);
+					$evidence = self::shared_cache_evidence( $headers );
+
+					if ( ! empty( $evidence ) ) {
+						// No visible s-maxage, but a shared cache is demonstrably serving
+						// this page, so the proxy consumed s-maxage before we could see it.
+						$return['max_age'] = array(
+							'icon'    => 'warning',
+							// translators: %s is a comma separated list of response headers, e.g. "X-Cache: HIT, Age: 956".
+							'message' => sprintf( __( 'The header Cache-Control is returning "max-age=0" with no visible "s-maxage", but this page was served from a shared cache (%s). Your proxy most likely consumed "s-maxage" and stripped it from the response, so caching is working. If you never set "s-maxage" at the origin, check what cache lifetime your host applies.', 'varnish-http-purge' ), implode( ', ', $evidence ) ),
+						);
+					} else {
+						// max-age=0 without s-maxage is problematic.
+						$return['max_age'] = array(
+							'icon'    => 'bad',
+							'message' => __( 'The header Cache-Control is returning "max-age=0", which means a page can be no older than 0 seconds before it needs to regenerate the cache.', 'varnish-http-purge' )
+								. self::cacheability_pro_suggestion( __( 'adds proper s-maxage headers so your cache can serve pages.', 'varnish-http-purge' ) ),
+						);
+					}
 				}
 			}
 		}
