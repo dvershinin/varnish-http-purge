@@ -78,7 +78,7 @@ php-compat:
 		$$HOME/.composer/vendor/bin/phpcs --standard=PHPCompatibility \
 			--runtime-set testVersion $$declared \
 			--extensions=php \
-			--ignore=tests/,vendor/ \
+			--ignore=tests/,vendor/,build/ \
 			. && echo "✅ Code is compatible with PHP $$declared+"; \
 	else \
 		echo "PHPCompatibility not installed. Install with:"; \
