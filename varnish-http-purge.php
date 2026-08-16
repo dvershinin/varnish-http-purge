@@ -2081,9 +2081,12 @@ class VarnishPurger {
 		$urls       = array();
 		$purge_upto = min( $numpages, max( 2, $max ) );
 
+		// The front page paginates as /page/2/ rather than /2/.
+		$pagination_base = isset( $wp_rewrite->pagination_base ) ? $wp_rewrite->pagination_base : 'page';
+
 		for ( $i = 2; $i <= $purge_upto; $i++ ) {
 			if ( $is_front ) {
-				$urls[] = trailingslashit( $permalink ) . user_trailingslashit( $wp_rewrite->pagination_base . '/' . $i, 'single_paged' );
+				$urls[] = trailingslashit( $permalink ) . user_trailingslashit( $pagination_base . '/' . $i, 'single_paged' );
 			} else {
 				$urls[] = trailingslashit( $permalink ) . user_trailingslashit( (string) $i, 'single_paged' );
 			}
