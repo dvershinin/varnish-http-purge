@@ -2,7 +2,7 @@
 
 = 5.12.3 =
 * August 2026
-* Fix: Multipage posts now purge every numbered page for real. 5.12.1 asked the proxy for a wildcard purge of the post URL, which silently did nothing on the many Varnish configurations that do not implement regex banning (or do not store the object URL for the ban lurker to match), so pages 2..N kept serving pre-edit content. The plugin now purges the actual page URLs (/post/2/, /post/3/, ...) with ordinary PURGE requests, exactly as WordPress builds them, so it works on any setup where purging page 1 already works. Reported by @didierjm.
+* Fix: Multipage posts now purge every numbered page. 5.12.1 covered pages 2..N by asking the proxy for a wildcard purge of the post URL ("PURGE /post-slug/.*" with "X-Purge-Method: regex"), which did not invalidate them on the reporter's setup. The plugin now purges the actual page URLs (/post/2, /post/3, ...) with ordinary PURGE requests, built exactly as WordPress builds them, so pages 2..N go through the same mechanism that already purges page 1 instead of depending on how the proxy handles wildcards. Reported by @didierjm.
 
 = 5.12.2 =
 * August 2026

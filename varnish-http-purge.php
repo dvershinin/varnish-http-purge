@@ -2024,8 +2024,11 @@ class VarnishPurger {
 	 * Returns the URLs of pages 2..N only (page 1 is the plain permalink).
 	 * The URLs are built exactly the way WordPress core builds them in
 	 * _wp_link_page(), so that they can be purged individually. Purging the
-	 * real URLs is deliberate: a regex/wildcard purge would depend on the
-	 * proxy being configured for banning, which many Varnish setups are not.
+	 * real URLs is deliberate: it puts pages 2..N through the same ordinary
+	 * PURGE request that already invalidates page 1, rather than depending on
+	 * how a given proxy handles a wildcard/ban purge of a sub-path. 5.12.1
+	 * used the wildcard and did not invalidate the numbered pages at all on
+	 * the reporting user's setup.
 	 *
 	 * @since 5.12.3
 	 * @param int $post_id - The ID of the post.

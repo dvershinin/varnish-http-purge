@@ -481,7 +481,7 @@ Cron-mode (async purge queue) is no longer auto-enabled when `DISABLE_WP_CRON` i
 == Changelog ==
 
 = 5.12.3 (2026-08) =
-* Fix: Multipage posts now purge every numbered page for real. 5.12.1 asked the proxy for a wildcard purge, which silently did nothing on Varnish configurations without regex banning, so pages 2..N kept serving pre-edit content. The actual page URLs are now purged with ordinary PURGE requests. Reported by @didierjm.
+* Fix: Multipage posts now purge every numbered page. 5.12.1 covered pages 2..N by asking the proxy for a wildcard purge of the post URL, which did not invalidate them on the reporter's setup. The plugin now purges the real page URLs (/your-post/2, /your-post/3, ...) with the same ordinary PURGE requests that already work for page 1, so it no longer depends on the proxy handling wildcards. Reported by @didierjm.
 
 = 5.12.2 (2026-08) =
 * Fix: "max-age=0" is no longer a Site Health error when the response proves a shared cache is serving the page. Proxies that consume "s-maxage" and strip it from the response used to make correctly cached sites look broken; cache hit indicators now downgrade the finding to a warning. Reported by @davidkoster89.
