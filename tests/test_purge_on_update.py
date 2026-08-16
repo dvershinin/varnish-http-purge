@@ -1,3 +1,4 @@
+import re
 import time
 import requests
 from urllib.parse import urlparse, urlunparse
@@ -130,14 +131,21 @@ def test_multipage_post_update_purges_all_pages(reset_plugin_options):
     unrelated_id = unrelated_data["id"]
     unrelated_url = _to_container_url(unrelated_data["url"])
 
+    # Numbered pages follow the site's trailing-slash preference, exactly like
+    # core's _wp_link_page(). The test stack uses "/%postname%" (no trailing
+    # slash), so page 2 is "/slug/2" - "/slug/2/" is only a 301 to it, and
+    # asserting on that redirect would not prove the page itself was purged.
     page_urls = [
         post_url,
-        f"{post_url.rstrip('/')}/2/",
-        f"{post_url.rstrip('/')}/3/",
+        f"{post_url.rstrip('/')}/2",
+        f"{post_url.rstrip('/')}/3",
     ]
 
     try:
         for page_url in page_urls:
+            assert head(page_url).status_code == 200, (
+                f"{page_url} must be the page itself, not a redirect"
+            )
             assert_cache_hit(page_url)
         assert_cache_hit(unrelated_url)
 
@@ -162,8 +170,16 @@ def test_multipage_post_update_purges_all_pages(reset_plugin_options):
         )
         generated_response.raise_for_status()
         generated = generated_response.json().get("generated", [])
-        expected_regex_url = f"{post_url.rstrip('/')}/?vhp-regex"
-        assert expected_regex_url in generated, generated
+
+        # The numbered pages must be purged as real URLs, not via a wildcard:
+        # regex/ban purging depends on proxy configuration many sites don't have
+        # (wp.org topic "Multipage posts purged only for page 1 when updated").
+        generated_paths = {urlparse(u).path for u in generated}
+        for page_url in page_urls[1:]:
+            assert urlparse(page_url).path in generated_paths, generated
+        assert not [u for u in generated if u.startswith(post_url.rstrip("/") + "/?vhp-regex")], (
+            f"Numbered pages must not rely on a wildcard purge: {generated}"
+        )
     finally:
         requests.post(
             f"{API_BASE}/delete-post",
@@ -173,6 +189,26 @@ def test_multipage_post_update_purges_all_pages(reset_plugin_options):
             f"{API_BASE}/delete-post",
             json={"post_id": unrelated_id},
         )
+
+
+def test_single_page_post_generates_no_numbered_page_urls(fresh_post):
+    """A post without page breaks must not gain any /2/ style purge URLs."""
+    _disable_tags()
+    post_id, url = fresh_post
+
+    generated_response = requests.post(
+        f"{API_BASE}/purge",
+        json={"post_id": post_id},
+    )
+    generated_response.raise_for_status()
+    generated = generated_response.json().get("generated", [])
+
+    post_path = urlparse(url).path.rstrip("/")
+    numbered = [
+        u for u in generated
+        if re.fullmatch(rf"{re.escape(post_path)}/\d+/?", urlparse(u).path)
+    ]
+    assert not numbered, f"Unexpected numbered page URLs: {numbered}"
 
 
 def test_vhp_domains_duplicates_urls_for_alternate_domains(fresh_post):

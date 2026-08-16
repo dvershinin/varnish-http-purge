@@ -1,5 +1,9 @@
 ## CHANGELOG
 
+= 5.12.3 =
+* August 2026
+* Fix: Multipage posts now purge every numbered page for real. 5.12.1 asked the proxy for a wildcard purge of the post URL, which silently did nothing on the many Varnish configurations that do not implement regex banning (or do not store the object URL for the ban lurker to match), so pages 2..N kept serving pre-edit content. The plugin now purges the actual page URLs (/post/2/, /post/3/, ...) with ordinary PURGE requests, exactly as WordPress builds them, so it works on any setup where purging page 1 already works. Reported by @didierjm.
+
 = 5.12.2 =
 * August 2026
 * Fix: "max-age=0" is no longer reported as a Site Health error when the response proves a shared cache is serving the page. Proxies on some managed hosts consume "s-maxage" and strip it from the response, so the debugger only saw "max-age=0" and flagged a working site. Cache hit indicators (X-Cache/X-Cache-Status/X-Proxy-Cache HIT, a positive Age, X-Cache-Age or X-Cache-Hits) now downgrade the finding to a warning. Reported by @davidkoster89.

@@ -3,7 +3,7 @@
  * Plugin Name: Proxy Cache Purge
  * Plugin URI: https://github.com/dvershinin/varnish-http-purge
  * Description: Automatically empty cached pages when content on your site is modified.
- * Version: 5.12.2
+ * Version: 5.12.3
  * Requires at least: 5.0
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -43,7 +43,7 @@ class VarnishPurger {
 	 * Version Number
 	 * @var string
 	 */
-	public static $version = '5.12.2';
+	public static $version = '5.12.3';
 
 	/**
 	 * List of URLs to be purged
@@ -2019,6 +2019,85 @@ class VarnishPurger {
 	}
 
 	/**
+	 * Numbered page URLs of a post split with <!--nextpage-->
+	 *
+	 * Returns the URLs of pages 2..N only (page 1 is the plain permalink).
+	 * The URLs are built exactly the way WordPress core builds them in
+	 * _wp_link_page(), so that they can be purged individually. Purging the
+	 * real URLs is deliberate: a regex/wildcard purge would depend on the
+	 * proxy being configured for banning, which many Varnish setups are not.
+	 *
+	 * @since 5.12.3
+	 * @param int $post_id - The ID of the post.
+	 * @return array List of absolute URLs. Empty when the post is single page.
+	 * @access protected
+	 */
+	protected function get_post_page_urls( $post_id ) {
+		global $wp_rewrite;
+
+		$content = get_post_field( 'post_content', $post_id );
+
+		if ( ! is_string( $content ) || false === strpos( $content, '<!--nextpage-->' ) ) {
+			return array();
+		}
+
+		// Without a permalink structure the pages live on a query variable
+		// (?page=2), and query variables are stripped before purging.
+		if ( ! get_option( 'permalink_structure' ) ) {
+			return array();
+		}
+
+		// Mirror how core counts pages in setup_postdata().
+		$content = str_replace( "\n<!--nextpage-->\n", '<!--nextpage-->', $content );
+		$content = str_replace( "\n<!--nextpage-->", '<!--nextpage-->', $content );
+		$content = str_replace( "<!--nextpage-->\n", '<!--nextpage-->', $content );
+
+		// A page break at the very start of the content does not create a page.
+		if ( 0 === strpos( $content, '<!--nextpage-->' ) ) {
+			$content = substr( $content, 15 );
+		}
+
+		$numpages = count( explode( '<!--nextpage-->', $content ) );
+
+		if ( $numpages < 2 ) {
+			return array();
+		}
+
+		/**
+		 * Filters how many numbered pages of a post are purged individually.
+		 *
+		 * Guards against a post with an absurd number of page breaks turning
+		 * one update into hundreds of PURGE requests.
+		 *
+		 * @since 5.12.3
+		 *
+		 * @param int $max     Maximum number of pages to purge. Default 100.
+		 * @param int $post_id The post being purged.
+		 */
+		$max = (int) apply_filters( 'vhp_max_post_pages_to_purge', 100, $post_id );
+
+		$permalink  = get_permalink( $post_id );
+		$is_front   = ( 'page' === get_option( 'show_on_front' ) && (int) get_option( 'page_on_front' ) === (int) $post_id );
+		$urls       = array();
+		$purge_upto = min( $numpages, max( 2, $max ) );
+
+		for ( $i = 2; $i <= $purge_upto; $i++ ) {
+			if ( $is_front ) {
+				$urls[] = trailingslashit( $permalink ) . user_trailingslashit( $wp_rewrite->pagination_base . '/' . $i, 'single_paged' );
+			} else {
+				$urls[] = trailingslashit( $permalink ) . user_trailingslashit( (string) $i, 'single_paged' );
+			}
+		}
+
+		// Too many pages to enumerate: ask the proxy to wildcard the rest.
+		if ( $numpages > $purge_upto ) {
+			$urls[] = trailingslashit( $permalink ) . '?vhp-regex';
+		}
+
+		return $urls;
+	}
+
+	/**
 	 * Purge Post
 	 * Flush the post
 	 *
@@ -2127,11 +2206,9 @@ class VarnishPurger {
 			}
 
 			// Post URL and any numbered pages created by <!--nextpage-->.
-			$post_permalink = get_permalink( $post_id );
-			$post_content   = get_post_field( 'post_content', $post_id );
-			array_push( $listofurls, $post_permalink );
-			if ( is_string( $post_content ) && false !== strpos( $post_content, '<!--nextpage-->' ) ) {
-				array_push( $listofurls, trailingslashit( $post_permalink ) . '?vhp-regex' );
+			array_push( $listofurls, get_permalink( $post_id ) );
+			foreach ( $this->get_post_page_urls( $post_id ) as $paged_url ) {
+				array_push( $listofurls, $paged_url );
 			}
 
 			/**
