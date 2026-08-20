@@ -5,7 +5,7 @@
  * Description: Automatically empty cached pages when content on your site is modified.
  * Version: 5.12.3
  * Requires at least: 5.0
- * Tested up to: 7.0
+ * Tested up to: 7.1
  * Requires PHP: 7.4
  * Author: Mika Epstein, Danila Vershinin
  * Author URI: https://halfelf.org/
