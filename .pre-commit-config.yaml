@@ -28,10 +28,9 @@ repos:
     hooks:
       - id: no-escaped-quotes-in-text
         name: Check for escaped quotes in text files
-        # Folded scalar: the command contains ": " which a plain scalar cannot hold.
-        entry: >-
-          bash -c 'if grep -l "\\\\\\"" "$@" 2>/dev/null; then echo "ERROR: Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."; exit 1; fi; exit 0'
-        language: system
+        # pygrep fails when the pattern matches: a backslash-quote in a text file.
+        entry: '\\"'
+        language: pygrep
         files: \.(txt|md)$
         types: [text]
 
