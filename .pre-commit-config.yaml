@@ -52,7 +52,8 @@ repos:
     hooks:
       - id: phpstan
         name: PHPStan
-        entry: bash -c 'if command -v phpstan &> /dev/null; then phpstan analyse --no-progress "$@"; else echo "phpstan not installed, skipping"; fi'
+        # Same memory limit as the Makefile: the default 128M crashes the worker.
+        entry: bash -c 'if command -v phpstan &> /dev/null; then phpstan analyse --no-progress --memory-limit=512M "$@"; else echo "phpstan not installed, skipping"; fi' --
         language: system
         files: \.php$
         exclude: ^tests/

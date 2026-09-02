@@ -2544,7 +2544,7 @@ class VarnishPurger {
 				// Pages and Woo Things don't need all this.
 				if ( $this_post_type && 'post' === $this_post_type ) {
 					// Author URLs:
-					$author_id = get_post_field( 'post_author', $post_id );
+					$author_id = (int) get_post_field( 'post_author', $post_id );
 					array_push(
 						$listofurls,
 						get_author_posts_url( $author_id ),
