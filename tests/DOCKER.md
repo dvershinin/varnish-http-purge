@@ -5,6 +5,7 @@ This docker setup spins up:
 - WordPress with Apache on port 8080 (internal only)
 - WP-CLI
 - Varnish 7.4 on port 6081 (internal), exposed to host via ADMIN_REVIEW_PORT
+- nginx (stable) with nginx-module-cache-purge built from the pinned `2.6.1` tag, three arms on ports 6082 (tags-aware PURGE), 6083 (PURGE without `cache_purge_tags`) and 6084 (PURGE restricted to loopback); see `tests/nginx/default.conf`
 
 The plugin in this repo is mounted into the WordPress container at `wp-content/plugins/varnish-http-purge`.
 
@@ -49,6 +50,7 @@ The plugin in this repo is mounted into the WordPress container at `wp-content/p
 
 ## Prereqs
 - Docker and Docker Compose
+- SSH access to the private `GetPageSpeed/ngx_cache_purge` repository for the nginx image build: `docker compose build --ssh default=$HOME/.ssh/<github-key> nginx` (or keep the key in `ssh-agent`; CI loads the read-only deploy key from the `NGX_CACHE_PURGE_DEPLOY_KEY` secret)
 
 ## Usage
 

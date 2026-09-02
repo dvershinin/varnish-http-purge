@@ -51,6 +51,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Load the read-only ngx_cache_purge deploy key
+        # The nginx arm clones the private module repo during its image build
+        # through a BuildKit SSH mount; the key never enters an image layer.
+        run: |
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          printf '%s\n' "${{ secrets.NGX_CACHE_PURGE_DEPLOY_KEY }}" | ssh-add -
+          ssh-add -l
+
+      - name: Build nginx cache-purge image (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: tests/nginx
+          file: tests/nginx/Dockerfile
+          tags: vhp/nginx-cache-purge:ci
+          load: true
+          ssh: default
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Start DB and WordPress
         working-directory: tests
         run: docker compose -p vhp up -d db wordpress
@@ -59,7 +80,7 @@ jobs:
       - name: Inspect networks (prove same network & DNS)
         working-directory: tests
         run: |
-          echo "# wordpress networks:" 
+          echo "# wordpress networks:"
           docker inspect -f '{{json .NetworkSettings.Networks}}' $(docker compose -p vhp ps -q wordpress)
           echo "# varnish networks:"
           VID=$(docker compose -p vhp ps -q varnish || true)
@@ -83,9 +104,11 @@ jobs:
             if [ "$WP" = "healthy" ]; then
               break; fi; sleep 2; done
 
-      - name: Start Varnish (after WP is healthy)
+      - name: Start Varnish and nginx (after WP is healthy)
         working-directory: tests
-        run: docker compose -p vhp up -d --build varnish
+        run: |
+          docker compose -p vhp up -d --build varnish
+          docker compose -p vhp up -d --no-build nginx
 
       - name: Wait for Varnish container running
         working-directory: tests
@@ -131,6 +154,14 @@ jobs:
           docker compose -p vhp exec -T wordpress bash -lc "curl -fsS http://varnish:6081/ >/dev/null" || (echo "HTTP to varnish not ready"; docker compose -p vhp logs varnish | tail -n 200 || true; exit 1)
           docker compose -p vhp ps | cat
 
+      - name: Probe nginx cache-purge arm
+        working-directory: tests
+        run: |
+          for i in {1..60}; do
+            if docker compose -p vhp exec -T wordpress bash -lc "curl -fsS -o /dev/null http://nginx:6082/"; then
+              echo "nginx reachable"; break; fi; sleep 2; done
+          docker compose -p vhp exec -T wordpress bash -lc "curl -fsS -o /dev/null http://nginx:6082/" || (echo "HTTP to nginx not ready"; docker compose -p vhp logs nginx | tail -n 200 || true; exit 1)
+
       - name: WP Setup
         working-directory: tests
         run: bash setup.sh
@@ -157,4 +188,6 @@ jobs:
         working-directory: tests
         run: docker compose -p vhp down -v
 
-
+      - name: Stop ssh-agent
+        if: always()
+        run: ssh-agent -k || true

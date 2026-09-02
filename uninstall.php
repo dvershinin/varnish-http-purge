@@ -17,5 +17,6 @@ delete_site_option( 'vhp_varnish_devmode' );
 delete_site_option( 'vhp_varnish_max_posts_before_all' );
 delete_site_option( 'vhp_varnish_use_tags' );
 delete_site_option( 'vhp_varnish_debug' );
+delete_site_option( 'vhp_varnish_purge_results' );
 delete_site_option( 'vhp_varnish_purge_queue' );
 delete_site_option( 'vhp_varnish_last_queue_run' );

@@ -1329,6 +1329,100 @@ class VarnishDebug {
 	}
 
 	/**
+	 * Purge Results
+	 *
+	 * Reports the latest Cache-Purge-Result assessments recorded by
+	 * VarnishPurger::record_purge_result(). A tag purge answered with a
+	 * different operation is a configuration fault: content updates are not
+	 * invalidating the pages that carry those tags.
+	 *
+	 * @since 5.13.0
+	 *
+	 * @param array|null $results Recorded results; defaults to the stored option.
+	 * @return array Debug rows keyed by check name.
+	 */
+	public static function purge_results( $results = null ) {
+
+		$return = array();
+
+		if ( null === $results ) {
+			$results = get_site_option( 'vhp_varnish_purge_results' );
+		}
+
+		if ( ! is_array( $results ) || empty( $results ) ) {
+			return $return;
+		}
+
+		foreach ( $results as $key => $assessment ) {
+			if ( ! is_array( $assessment ) || ! isset( $assessment['state'] ) ) {
+				continue;
+			}
+
+			$expected = isset( $assessment['expected'] ) ? (string) $assessment['expected'] : (string) $key;
+			$host     = isset( $assessment['host'] ) ? (string) $assessment['host'] : '';
+			$label    = ( '' === $host )
+				// translators: %s is the purge operation (exact, wildcard, all, tags).
+				? sprintf( __( 'Purge Result: %s', 'varnish-http-purge' ), $expected )
+				// translators: %1$s is the purge operation, %2$s the purge target host.
+				: sprintf( __( 'Purge Result: %1$s (%2$s)', 'varnish-http-purge' ), $expected, $host );
+			$operation = isset( $assessment['operation'] ) ? (string) $assessment['operation'] : '';
+			$count     = isset( $assessment['count'] ) && null !== $assessment['count'] ? (int) $assessment['count'] : null;
+			$http_code = isset( $assessment['http_code'] ) ? (int) $assessment['http_code'] : 0;
+
+			switch ( $assessment['state'] ) {
+				case 'confirmed':
+					$return[ $label ] = array(
+						'icon'    => 'good',
+						'message' => ( null === $count )
+							// translators: %s is the purge operation.
+							? sprintf( __( 'The PURGE endpoint confirmed the "%s" operation.', 'varnish-http-purge' ), $operation )
+							// translators: %1$s is the purge operation, %2$d the number of cache objects removed.
+							: sprintf( __( 'The PURGE endpoint confirmed the "%1$s" operation and removed %2$d cached object(s).', 'varnish-http-purge' ), $operation, $count ),
+					);
+					break;
+
+				case 'mismatch':
+					$hint             = ( 'tags' === $expected )
+						? ' ' . __( 'Content updates are not invalidating tagged pages. On nginx, add "cache_purge_tags X-Cache-Tags X-Cache-Tags-Pattern;" to the cached location (nginx-module-cache-purge 2.6.1 or later).', 'varnish-http-purge' )
+						: '';
+					$return[ $label ] = array(
+						'icon'    => 'bad',
+						// translators: %1$s is the requested operation, %2$s the operation the endpoint performed.
+						'message' => sprintf( __( 'A "%1$s" purge was answered with Cache-Purge-Result "%2$s", so the requested invalidation did not happen.', 'varnish-http-purge' ), $expected, $operation ) . $hint,
+					);
+					break;
+
+				case 'failed':
+					$detail           = ! empty( $assessment['error'] ) ? (string) $assessment['error'] : sprintf( 'HTTP %d', $http_code );
+					$return[ $label ] = array(
+						'icon'    => 'bad',
+						// translators: %1$s is the purge operation, %2$s the transport error or HTTP status.
+						'message' => sprintf( __( 'The last "%1$s" purge request failed: %2$s.', 'varnish-http-purge' ), $expected, $detail ),
+					);
+					break;
+
+				case 'miss':
+					$return[ $label ] = array(
+						'icon'    => 'notice',
+						// translators: %s is the purge operation.
+						'message' => sprintf( __( 'The last "%s" purge found nothing cached under that key (HTTP 412).', 'varnish-http-purge' ), $expected ),
+					);
+					break;
+
+				default:
+					$return[ $label ] = array(
+						'icon'    => 'notice',
+						// translators: %s is the purge operation.
+						'message' => sprintf( __( 'The PURGE endpoint did not report a Cache-Purge-Result header for the last "%s" purge. Varnish, and nginx-module-cache-purge before 2.6.1, cannot confirm that the purge happened.', 'varnish-http-purge' ), $expected ),
+					);
+					break;
+			}
+		}
+
+		return $return;
+	}
+
+	/**
 	 * Get all the results
 	 *
 	 * Collect everything, get all the data spit it out.
@@ -1366,6 +1460,9 @@ class VarnishDebug {
 		// Cookies.
 		$cookie_results = self::cookie_results( $headers );
 
+		// Purge results.
+		$purge_results = self::purge_results();
+
 		// GZIP / Compression.
 		$gzip_results = self::gzip_results( $headers );
 
@@ -1379,7 +1476,7 @@ class VarnishDebug {
 		$bad_themes_results = self::bad_themes_results();
 
 		// Update Output.
-		$output = array_merge( $output, $server_results, $cache_results, $cookie_results, $bad_plugins_results, $bad_themes_results );
+		$output = array_merge( $output, $server_results, $cache_results, $cookie_results, $purge_results, $bad_plugins_results, $bad_themes_results );
 
 		// Add GZIP results if present.
 		if ( ! empty( $gzip_results ) ) {

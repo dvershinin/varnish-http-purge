@@ -1656,3 +1656,98 @@ add_action( 'rest_api_init', function() {
 		'permission_callback' => '__return_true',
 	) );
 } );
+
+// Optional extra PURGE target (host[:port]) so tests can point the plugin at
+// the nginx arm in addition to Varnish without changing VHP_VARNISH_IP.
+add_filter( 'vhp_purge_hosts', function( $hosts ) {
+    $extra = get_site_option( 'vhp_test_extra_purge_host', '' );
+    if ( is_string( $extra ) && '' !== $extra && ! in_array( $extra, $hosts, true ) ) {
+        $hosts[] = $extra;
+    }
+    return $hosts;
+} );
+
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'test/v1', '/purge-target', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $host = $req->get_param( 'host' );
+            if ( ! is_string( $host ) || '' === $host ) {
+                delete_site_option( 'vhp_test_extra_purge_host' );
+            } else {
+                update_site_option( 'vhp_test_extra_purge_host', $host );
+            }
+            wp_cache_flush();
+            return array( 'ok' => true, 'host' => get_site_option( 'vhp_test_extra_purge_host', '' ) );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Run the plugin's tag purge directly (no URL purges first) for a tag list.
+    register_rest_route( 'test/v1', '/purge-tags', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $tags = $req->get_param( 'tags' );
+            if ( ! is_array( $tags ) || empty( $tags ) ) {
+                return new WP_Error( 'bad_request', 'tags must be a non-empty array', array( 'status' => 400 ) );
+            }
+            $purger = new VarnishPurger();
+            $purger->purge_tags( array_map( 'strval', $tags ) );
+            return array( 'ok' => true, 'tags' => $tags );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Latest Cache-Purge-Result assessment per requested operation.
+    register_rest_route( 'test/v1', '/purge-results', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            wp_cache_flush();
+            $results = get_site_option( 'vhp_varnish_purge_results' );
+            return array( 'ok' => true, 'results' => is_array( $results ) ? $results : array() );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Debug-page rows derived from the recorded purge results.
+    register_rest_route( 'test/v1', '/debug/purge-results', array(
+        'methods'  => 'GET',
+        'callback' => function( WP_REST_Request $req ) {
+            wp_cache_flush();
+            return array( 'ok' => true, 'results' => VarnishDebug::purge_results() );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Pure parser check for Cache-Purge-Result values.
+    register_rest_route( 'test/v1', '/parse-purge-result', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            return array( 'ok' => true, 'parsed' => VarnishPurger::parse_cache_purge_result_value( $req->get_param( 'value' ) ) );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+
+    // Assessment of a synthetic PURGE response: {code, header, expected}.
+    register_rest_route( 'test/v1', '/assess-purge-response', array(
+        'methods'  => 'POST',
+        'callback' => function( WP_REST_Request $req ) {
+            $header   = $req->get_param( 'header' );
+            $headers  = array();
+            if ( is_string( $header ) && '' !== $header ) {
+                $headers['cache-purge-result'] = $header;
+            }
+            $response = array(
+                'response' => array( 'code' => intval( $req->get_param( 'code' ) ), 'message' => '' ),
+                'headers'  => $headers,
+                'body'     => '',
+            );
+            if ( 'wp_error' === $req->get_param( 'transport' ) ) {
+                $response = new WP_Error( 'http_request_failed', 'cURL error 7: connection refused' );
+            }
+            $expected = $req->get_param( 'expected' ) ?: 'tags';
+            return array( 'ok' => true, 'assessment' => VarnishPurger::assess_purge_response( $response, $expected ) );
+        },
+        'permission_callback' => '__return_true',
+    ) );
+} );

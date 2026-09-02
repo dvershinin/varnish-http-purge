@@ -911,7 +911,7 @@ class VarnishPurger {
 	 * highlighting the revenue impact of slow, uncached pages.
 	 * Only displays when WooCommerce is active and Cacheability Pro is not installed.
 	 *
-	 * @since 5.8.0
+	 * @since 5.13.0
 	 */
 	public function woocommerce_cache_notice() {
 		// Only show if WooCommerce is active.
@@ -987,7 +987,7 @@ class VarnishPurger {
 	/**
 	 * AJAX handler for dismissing WooCommerce cache notice.
 	 *
-	 * @since 5.8.0
+	 * @since 5.13.0
 	 */
 	public function ajax_dismiss_woo_cache_notice() {
 		check_ajax_referer( 'vhp_dismiss_woo_cache_notice', 'nonce' );
@@ -1601,6 +1601,16 @@ class VarnishPurger {
 			$all_hosts = array( $p['host'] );
 		}
 
+		/**
+		 * Filters the list of hosts that receive PURGE requests.
+		 *
+		 * @since 5.13.0
+		 *
+		 * @param array $all_hosts Hosts (optionally host:port) to purge.
+		 * @param array $p         Parsed home URL parts.
+		 */
+		$all_hosts = apply_filters( 'vhp_purge_hosts', $all_hosts, $p );
+
 		// Since the ship is always an array now, let's loop.
 		foreach ( $all_hosts as $one_host ) {
 
@@ -1687,8 +1697,240 @@ class VarnishPurger {
 				)
 			);
 
+			self::handle_purge_response( $response, ( 'regex' === $x_purge_method ) ? 'wildcard' : 'exact', $purgeme, $headers );
+
 			do_action( 'after_purge_url', $parsed_url, $purgeme, $response, $headers );
 		}
+	}
+
+	/**
+	 * Parse a Cache-Purge-Result header value.
+	 *
+	 * nginx-module-cache-purge 2.6.1+ answers every successful PURGE with an
+	 * HTTP Structured Fields Item: an operation token (exact, wildcard, all,
+	 * tags) followed by a count parameter. Unknown parameters are ignored, as
+	 * the contract requires.
+	 *
+	 * @since 5.13.0
+	 *
+	 * @param mixed $value Raw header value.
+	 * @return array|null { operation: string, count: int|null, params: array } or null when unparsable.
+	 */
+	public static function parse_cache_purge_result_value( $value ) {
+		if ( is_array( $value ) ) {
+			$value = end( $value );
+		}
+
+		if ( ! is_string( $value ) ) {
+			return null;
+		}
+
+		$value = trim( $value );
+
+		if ( ! preg_match( '/^([A-Za-z*][A-Za-z0-9_:\/.*-]*)((?:\s*;\s*[A-Za-z*][A-Za-z0-9_.*-]*(?:=[^;]*)?)*)\s*$/', $value, $matches ) ) {
+			return null;
+		}
+
+		$params = array();
+
+		foreach ( explode( ';', $matches[2] ) as $param ) {
+			$param = trim( $param );
+			if ( '' === $param ) {
+				continue;
+			}
+			$parts                                     = explode( '=', $param, 2 );
+			$params[ strtolower( trim( $parts[0] ) ) ] = isset( $parts[1] ) ? trim( $parts[1] ) : true;
+		}
+
+		$count = null;
+		if ( isset( $params['count'] ) && is_string( $params['count'] ) && preg_match( '/^\d+$/', $params['count'] ) ) {
+			$count = (int) $params['count'];
+		}
+
+		return array(
+			'operation' => strtolower( $matches[1] ),
+			'count'     => $count,
+			'params'    => $params,
+		);
+	}
+
+	/**
+	 * Parse the Cache-Purge-Result header from a PURGE response.
+	 *
+	 * @since 5.13.0
+	 *
+	 * @param mixed $response The response from wp_remote_request().
+	 * @return array|null See parse_cache_purge_result_value().
+	 */
+	public static function parse_cache_purge_result( $response ) {
+		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+
+		$value = wp_remote_retrieve_header( $response, 'cache-purge-result' );
+
+		if ( '' === $value || null === $value ) {
+			return null;
+		}
+
+		return self::parse_cache_purge_result_value( $value );
+	}
+
+	/**
+	 * Assess a PURGE response against the operation that was requested.
+	 *
+	 * HTTP 200 alone never proves that the requested invalidation happened: a
+	 * cache that ignores X-Cache-Tags-Pattern still answers 200 after purging
+	 * a single key. The assessment states are:
+	 *
+	 * - confirmed:  the endpoint reported the expected operation.
+	 * - mismatch:   the endpoint reported a different operation, so the
+	 *               requested invalidation did not happen.
+	 * - unreported: no Cache-Purge-Result header (Varnish, or a module that
+	 *               predates the contract); success cannot be verified.
+	 * - miss:       HTTP 412, nothing was cached under that key.
+	 * - failed:     transport error or an HTTP error status.
+	 *
+	 * @since 5.13.0
+	 *
+	 * @param mixed  $response           The response from wp_remote_request().
+	 * @param string $expected_operation One of exact, wildcard, all, tags.
+	 * @return array Assessment with expected, state, operation, count, http_code and error keys.
+	 */
+	public static function assess_purge_response( $response, $expected_operation ) {
+		$assessment = array(
+			'expected'  => $expected_operation,
+			'state'     => 'unreported',
+			'operation' => null,
+			'count'     => null,
+			'http_code' => null,
+			'error'     => '',
+		);
+
+		if ( is_wp_error( $response ) ) {
+			$assessment['state'] = 'failed';
+			$assessment['error'] = substr( (string) $response->get_error_message(), 0, 200 );
+			return $assessment;
+		}
+
+		$code                    = (int) wp_remote_retrieve_response_code( $response );
+		$assessment['http_code'] = $code;
+
+		if ( 412 === $code ) {
+			$assessment['state'] = 'miss';
+			return $assessment;
+		}
+
+		if ( $code < 200 || $code >= 400 ) {
+			$assessment['state'] = 'failed';
+			return $assessment;
+		}
+
+		$result = self::parse_cache_purge_result( $response );
+
+		if ( null === $result ) {
+			return $assessment;
+		}
+
+		$assessment['operation'] = $result['operation'];
+		$assessment['count']     = $result['count'];
+		$assessment['state']     = ( $result['operation'] === $expected_operation ) ? 'confirmed' : 'mismatch';
+
+		return $assessment;
+	}
+
+	/**
+	 * Remember the latest assessment per requested operation and purge target.
+	 *
+	 * The option is rewritten only when the outcome changes, so bulk purges do
+	 * not turn into one database write per request. A 412 "miss" carries no
+	 * information about the operation the endpoint performs, so it never
+	 * replaces a confirmed, mismatch or failed record: a purge that sends
+	 * several pattern batches must not bury a configuration fault under the
+	 * later batches that find the key already gone.
+	 *
+	 * @since 5.13.0
+	 *
+	 * @param array  $assessment See assess_purge_response().
+	 * @param string $purgeme    The URL that received the PURGE request.
+	 * @return void
+	 */
+	public static function record_purge_result( $assessment, $purgeme ) {
+		$results = get_site_option( 'vhp_varnish_purge_results' );
+
+		if ( ! is_array( $results ) ) {
+			$results = array();
+		}
+
+		// One record per requested operation and purge target: Varnish and an
+		// nginx arm answer the same purge differently and must not overwrite
+		// each other.
+		$target = wp_parse_url( $purgeme );
+		$host   = isset( $target['host'] ) ? $target['host'] : '';
+		if ( isset( $target['port'] ) ) {
+			$host .= ':' . $target['port'];
+		}
+		$key      = $assessment['expected'] . '|' . $host;
+		$previous = isset( $results[ $key ] ) && is_array( $results[ $key ] ) ? $results[ $key ] : null;
+
+		if ( null !== $previous && 'miss' === $assessment['state'] && 'miss' !== $previous['state'] ) {
+			return;
+		}
+
+		if ( null !== $previous ) {
+			$same = true;
+			foreach ( array( 'state', 'operation', 'count', 'http_code' ) as $field ) {
+				if ( ! array_key_exists( $field, $previous ) || $previous[ $field ] !== $assessment[ $field ] ) {
+					$same = false;
+					break;
+				}
+			}
+			if ( $same ) {
+				return;
+			}
+		}
+
+		$results[ $key ] = array_merge(
+			$assessment,
+			array(
+				'host' => $host,
+				'url'  => $purgeme,
+				'time' => time(),
+			)
+		);
+
+		update_site_option( 'vhp_varnish_purge_results', $results );
+	}
+
+	/**
+	 * Assess, record and announce one PURGE response.
+	 *
+	 * @since 5.13.0
+	 *
+	 * @param mixed  $response           The response from wp_remote_request().
+	 * @param string $expected_operation One of exact, wildcard, all, tags.
+	 * @param string $purgeme            The URL that received the PURGE request.
+	 * @param array  $headers            The headers sent with the PURGE request.
+	 * @return array The assessment.
+	 */
+	public static function handle_purge_response( $response, $expected_operation, $purgeme, $headers ) {
+		$assessment = self::assess_purge_response( $response, $expected_operation );
+		self::record_purge_result( $assessment, $purgeme );
+
+		/**
+		 * Fires after a PURGE response has been assessed against the
+		 * Cache-Purge-Result contract.
+		 *
+		 * @since 5.13.0
+		 *
+		 * @param array  $assessment See VarnishPurger::assess_purge_response().
+		 * @param string $purgeme    The URL that received the PURGE request.
+		 * @param mixed  $response   The response from wp_remote_request().
+		 * @param array  $headers    The headers sent with the PURGE request.
+		 */
+		do_action( 'vhp_purge_result', $assessment, $purgeme, $response, $headers );
+
+		return $assessment;
 	}
 
 	/**
@@ -1831,6 +2073,16 @@ class VarnishPurger {
 			$all_hosts = array( $p['host'] );
 		}
 
+		/**
+		 * Filters the list of hosts that receive PURGE requests.
+		 *
+		 * @since 5.13.0
+		 *
+		 * @param array $all_hosts Hosts (optionally host:port) to purge.
+		 * @param array $p         Parsed home URL parts.
+		 */
+		$all_hosts = apply_filters( 'vhp_purge_hosts', $all_hosts, $p );
+
 		// Since the ship is always an array now, let's loop.
 		foreach ( $all_hosts as $one_host ) {
 
@@ -1873,6 +2125,8 @@ class VarnishPurger {
 						'headers'   => $headers,
 					)
 				);
+
+				self::handle_purge_response( $response, 'tags', $purgeme, $headers );
 
 				/**
 				 * Fires after a tag-pattern purge request has been sent.

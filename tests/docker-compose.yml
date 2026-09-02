@@ -117,6 +117,22 @@ services:
         aliases:
           - varnish
 
+  nginx:
+    image: vhp/nginx-cache-purge:ci
+    build:
+      context: ./nginx
+      ssh:
+        - default
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      vhp_net:
+        aliases:
+          - nginx
+
   tester:
     image: vhp/tester:ci
     build:
@@ -127,6 +143,8 @@ services:
         condition: service_healthy
       varnish:
         condition: service_started
+      nginx:
+        condition: service_started
     user: "33:33"
     working_dir: /workspace
     volumes:
@@ -136,6 +154,9 @@ services:
     command: -q -c tests/pytest.ini
     environment:
       WP_URL: http://varnish:6081
+      NGINX_URL: http://nginx:6082
+      NGINX_NOTAGS_URL: http://nginx:6083
+      NGINX_RESTRICTED_URL: http://nginx:6084
     dns_opt:
       - ndots:0
       - attempts:1
@@ -145,5 +166,3 @@ services:
 
 volumes:
   wp_data:
-
-
