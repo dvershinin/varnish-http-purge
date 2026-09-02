@@ -28,7 +28,9 @@ repos:
     hooks:
       - id: no-escaped-quotes-in-text
         name: Check for escaped quotes in text files
-        entry: bash -c 'if grep -l "\\\\\\"" "$@" 2>/dev/null; then echo "ERROR: Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."; exit 1; fi; exit 0'
+        # Folded scalar: the command contains ": " which a plain scalar cannot hold.
+        entry: >-
+          bash -c 'if grep -l "\\\\\\"" "$@" 2>/dev/null; then echo "ERROR: Found escaped quotes (backslash-quote) in text files. Use regular quotes instead."; exit 1; fi; exit 0'
         language: system
         files: \.(txt|md)$
         types: [text]
@@ -53,4 +55,3 @@ repos:
         files: \.php$
         exclude: ^tests/
         pass_filenames: false
-
