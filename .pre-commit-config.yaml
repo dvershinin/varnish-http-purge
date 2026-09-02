@@ -40,7 +40,10 @@ repos:
     hooks:
       - id: phpcs
         name: PHP CodeSniffer
-        entry: bash -c 'if command -v phpcs &> /dev/null; then phpcs --standard=phpcs.xml.dist "$@"; else echo "phpcs not installed, skipping"; fi'
+        # Prefer the Composer phpcs that carries WPCS (same order as the Makefile);
+        # the Homebrew phpcs on PATH lacks the WordPress standards. The trailing
+        # "--" keeps $0 from eating the first file argument.
+        entry: bash -c 'PHPCS="$HOME/.composer/vendor/bin/phpcs"; [ -x "$PHPCS" ] || PHPCS=phpcs; if command -v "$PHPCS" &> /dev/null; then "$PHPCS" --standard=phpcs.xml.dist "$@"; else echo "phpcs not installed, skipping"; fi' --
         language: system
         files: \.php$
         exclude: ^tests/
