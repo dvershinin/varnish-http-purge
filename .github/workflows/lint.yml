@@ -93,9 +93,10 @@ jobs:
 
       # Catches @param/@return types that disagree with reality (e.g. a docblock
       # claiming `array` for a value every caller passes as a string). Scoped +
-      # level 5; see phpstan-phpdoc.neon. 1G because scanning the WP stubs is heavy.
+      # level 5; see phpstan-phpdoc.neon. 2G because scanning the WP stubs is heavy
+      # (newer phpstan releases exhaust 1G on the 5.8 MB stub file).
       - name: Run PHPStan (PHPDoc types)
-        run: phpstan analyse -c phpstan-phpdoc.neon --no-progress --error-format=github --memory-limit=1G
+        run: phpstan analyse -c phpstan-phpdoc.neon --no-progress --error-format=github --memory-limit=2G
 
   php-compatibility:
     name: PHP Compatibility

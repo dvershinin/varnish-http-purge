@@ -57,7 +57,7 @@ phpstan-phpdoc:
 			exit 1; \
 		fi; \
 		mkdir -p build && ln -sf "$$stub" build/wordpress-stubs.php; \
-		phpstan analyse -c phpstan-phpdoc.neon --no-progress --memory-limit=1G; \
+		phpstan analyse -c phpstan-phpdoc.neon --no-progress --memory-limit=2G; \
 	else \
 		echo "phpstan not installed. Install with: composer global require phpstan/phpstan"; \
 	fi
