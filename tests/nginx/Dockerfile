@@ -7,7 +7,7 @@
 ARG NGINX_IMAGE=nginx:stable-bookworm
 
 FROM ${NGINX_IMAGE} AS builder
-ARG NGX_CACHE_PURGE_REF=2.6.1
+ARG NGX_CACHE_PURGE_REF=2.6.2
 RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential ca-certificates curl git openssh-client libpcre2-dev libssl-dev zlib1g-dev \
  && rm -rf /var/lib/apt/lists/*
