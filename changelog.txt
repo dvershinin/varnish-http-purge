@@ -1,5 +1,14 @@
 ## CHANGELOG
 
+= 5.13.0 =
+* November 2026
+* New: XML sitemaps are purged when the content they list changes (Yoast SEO). Publishing, updating, unpublishing or deleting a published post purges the sitemap index, the post type sitemap and the sitemaps of the post's taxonomies; term and user changes purge the taxonomy and author sitemaps; saving a draft purges nothing. Sitemaps can now be cached for a day or longer without going stale. Paginated sitemaps are purged with one wildcard request. Sitemap purges do not count toward the 50 URL full-purge limit and work in Cache Tags mode and with Background Purging.
+* New: `wp varnish purge --sitemaps` purges every XML sitemap.
+* New: `vhp_purge_sitemaps`, `vhp_sitemap_purge_urls` and `vhp_sitemap_entries_per_page` filters, and the `VHP_DISABLE_SITEMAP_PURGE` constant.
+* New: Every PURGE response is assessed against the `Cache-Purge-Result` contract of nginx-module-cache-purge 2.6.1+. A tag purge counts as confirmed only when the endpoint reports the `tags` operation; a different operation is recorded as a mismatch and surfaced in the debug page and Site Health, because HTTP 200 alone never proves that tagged pages were invalidated.
+* New: `vhp_purge_result` action with the assessment of each PURGE response, and `vhp_purge_hosts` filter to add or replace PURGE targets.
+* Dev: Docker test harness gained an nginx + nginx-module-cache-purge arm (`tests/nginx`) so the plugin is proven against real nginx tag purges, not only Varnish.
+
 = 5.12.3 =
 * August 2026
 * Fix: Multipage posts now purge every numbered page. 5.12.1 covered pages 2..N by asking the proxy for a wildcard purge of the post URL ("PURGE /post-slug/.*" with "X-Purge-Method: regex"), which did not invalidate them on the reporter's setup. The plugin now purges the actual page URLs (/post/2, /post/3, ...) with ordinary PURGE requests, built exactly as WordPress builds them, so pages 2..N go through the same mechanism that already purges page 1 instead of depending on how the proxy handles wildcards. Reported by @didierjm.

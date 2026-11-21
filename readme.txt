@@ -3,7 +3,7 @@ Contributors: Ipstenu, mikeschroder, techpriester, danielbachhuber, dvershinin
 Tags: proxy, purge, cache, varnish, nginx
 Requires at least: 5.0
 Tested up to: 7.1
-Stable tag: 5.12.3
+Stable tag: 5.13.0
 Requires PHP: 7.4
 License: Apache License 2.0
 License URI: https://www.apache.org/licenses/LICENSE-2.0
@@ -482,6 +482,9 @@ add_filter( 'varnish_http_purge_x_varnish_header_name', 'change_varnish_header' 
 
 == Upgrade Notice ==
 
+= 5.13.0 =
+XML sitemaps from Yoast SEO are now purged when their content changes, so your proxy can cache them for a day or longer. Adds `wp varnish purge --sitemaps`.
+
 = 5.11.1 =
 Security fix: the manual per-page purge action now only ever purges URLs on your own site and requires a capability in addition to the nonce. This closes a low-severity, authenticated SSRF (a blind internal-host reachability probe). Recommended for all sites that grant Author-level or multi-author access.
 
@@ -490,7 +493,7 @@ Cron-mode (async purge queue) is no longer auto-enabled when `DISABLE_WP_CRON` i
 
 == Changelog ==
 
-= 5.13.0 (unreleased) =
+= 5.13.0 (2026-11) =
 * New: XML sitemaps are purged when the content they list changes (Yoast SEO). Publishing, updating, unpublishing or deleting a published post purges the sitemap index, the post type sitemap and the sitemaps of the post's taxonomies; term and user changes purge the taxonomy and author sitemaps; saving a draft purges nothing. Sitemaps can now be cached for a day or longer without going stale. Paginated sitemaps are purged with one wildcard request. Sitemap purges do not count toward the 50 URL full-purge limit and work in Cache Tags mode and with Background Purging.
 * New: `wp varnish purge --sitemaps` purges every XML sitemap.
 * New: `vhp_purge_sitemaps`, `vhp_sitemap_purge_urls` and `vhp_sitemap_entries_per_page` filters, and the `VHP_DISABLE_SITEMAP_PURGE` constant.
