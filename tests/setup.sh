@@ -10,13 +10,15 @@ until docker compose exec -T wordpress curl -sSf http://localhost:8080/wp-admin/
   sleep 3
 done
 
-# Sanity check: verify PHP syntax of test mu-plugin before running tests.
+# Sanity check: verify PHP syntax of the test mu-plugins before running tests.
 # This catches syntax errors early instead of getting cryptic 500 errors.
-if ! docker compose exec -T wordpress php -l /var/www/html/wp-content/mu-plugins/test-control.php >/dev/null 2>&1; then
-  echo "ERROR: PHP syntax error in test-control.php:"
-  docker compose exec -T wordpress php -l /var/www/html/wp-content/mu-plugins/test-control.php
-  exit 1
-fi
+for mu_plugin in test-control.php sitemap-control.php; do
+  if ! docker compose exec -T wordpress php -l "/var/www/html/wp-content/mu-plugins/${mu_plugin}" >/dev/null 2>&1; then
+    echo "ERROR: PHP syntax error in ${mu_plugin}:"
+    docker compose exec -T wordpress php -l "/var/www/html/wp-content/mu-plugins/${mu_plugin}"
+    exit 1
+  fi
+done
 
 # Reload Apache to clear OPcache and pick up any PHP file changes.
 # This ensures tests run against the latest plugin code.
@@ -45,6 +47,15 @@ wp rewrite flush --hard
 
 # Activate our plugin
 wp plugin activate varnish-http-purge
+
+# Yoast SEO backs the XML sitemap purge tests. It is installed but left
+# inactive: the sitemap tests switch it on for themselves, so the rest of the
+# suite keeps running against a plain WordPress. The version is pinned to one
+# that supports the WordPress release of the test image.
+YOAST_VERSION="24.9"
+if ! wp plugin is-installed wordpress-seo; then
+  wp plugin install wordpress-seo --version="${YOAST_VERSION}"
+fi
 
 # Create a sample post
 if ! wp post list --post_type=post --format=ids | grep -qE '^[0-9]+'; then

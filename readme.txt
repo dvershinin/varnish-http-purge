@@ -131,6 +131,7 @@ Purge commands let you empty the cache.
 * `wp varnish purge <url>` - Flush cache for a specific URL and all content below it (wildcard)
 * `wp varnish purge <url> --url-only` - Flush cache for only the exact URL specified (no wildcard)
 * `wp varnish purge --tag=<tag>` - Flush cache by tag (requires Cache Tags mode to be enabled)
+* `wp varnish purge --sitemaps` - Flush the XML sitemaps only (requires Yoast SEO sitemaps)
 
 Examples:
 
@@ -253,6 +254,15 @@ It depends on the post, but in general the tool will delete cached content for:
 3. All first pages of related tags/categories
 4. The JSON API pages
 5. All related RSS feeds
+6. The XML sitemaps that list the post (when Yoast SEO serves your sitemaps)
+
+= Are my XML sitemaps purged too? =
+
+Yes, when Yoast SEO serves them. Publishing, updating, unpublishing or deleting a published post purges the sitemap index, the sitemap of that post type and the sitemaps of the taxonomies the post belongs to. Editing a category or tag purges its taxonomy sitemap, and user changes purge the author sitemap. Saving a draft purges nothing, because drafts are not listed in sitemaps.
+
+This means you can let your proxy cache sitemaps for a long time (a day or more) without search engines seeing a stale list. Sitemap purges are separate from the 50 URL limit described below, and they follow Background Purging when it is enabled.
+
+Developers: turn the feature off with `define( 'VHP_DISABLE_SITEMAP_PURGE', true );` or the `vhp_purge_sitemaps` filter, and add or remove sitemap URLs with the `vhp_sitemap_purge_urls` filter. A sitemap plugin that uses the same URLs as Yoast SEO (`sitemap_index.xml`, `post-sitemap.xml`) can opt in by returning true from `vhp_purge_sitemaps`.
 
 = Is there a limit to how many pages I can purge at once? =
 
@@ -481,6 +491,9 @@ Cron-mode (async purge queue) is no longer auto-enabled when `DISABLE_WP_CRON` i
 == Changelog ==
 
 = 5.13.0 (unreleased) =
+* New: XML sitemaps are purged when the content they list changes (Yoast SEO). Publishing, updating, unpublishing or deleting a published post purges the sitemap index, the post type sitemap and the sitemaps of the post's taxonomies; term and user changes purge the taxonomy and author sitemaps; saving a draft purges nothing. Sitemaps can now be cached for a day or longer without going stale. Paginated sitemaps are purged with one wildcard request. Sitemap purges do not count toward the 50 URL full-purge limit and work in Cache Tags mode and with Background Purging.
+* New: `wp varnish purge --sitemaps` purges every XML sitemap.
+* New: `vhp_purge_sitemaps`, `vhp_sitemap_purge_urls` and `vhp_sitemap_entries_per_page` filters, and the `VHP_DISABLE_SITEMAP_PURGE` constant.
 * New: Every PURGE response is assessed against the `Cache-Purge-Result` contract of nginx-module-cache-purge 2.6.1+. A tag purge counts as confirmed only when the endpoint reports the `tags` operation; a different operation is recorded as a mismatch and surfaced in the debug page and Site Health, because HTTP 200 alone never proves that tagged pages were invalidated.
 * New: `vhp_purge_result` action with the assessment of each PURGE response, and `vhp_purge_hosts` filter to add or replace PURGE targets.
 * Dev: Docker test harness gained an nginx + nginx-module-cache-purge arm (`tests/nginx`) so the plugin is proven against real nginx tag purges, not only Varnish.

@@ -34,6 +34,13 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 		 */
 		private $wildcard = false;
 
+		/**
+		 * The purger used by the commands.
+		 *
+		 * @var VarnishPurger
+		 * @access private
+		 */
+		private $varnish_purge;
 
 		/**
 		 * __construct function.
@@ -68,6 +75,10 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 		 *   Common tags: p-{id} (post), pt-{type} (post type), t-{id} (term),
 		 *   a-{id} (author), home, blog, archive, feed.
 		 *
+		 * [--sitemaps]
+		 * : Purge every XML sitemap (the sitemap index and all post type,
+		 *   taxonomy and author sitemaps). Requires Yoast SEO sitemaps.
+		 *
 		 * ## EXAMPLES
 		 *
 		 *      # Purge the entire site cache
@@ -87,6 +98,9 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 		 *      wp varnish purge --tag=p-123
 		 *      wp varnish purge --tag=pt-post
 		 *      wp varnish purge --tag=home
+		 *
+		 *      # Purge the XML sitemaps only
+		 *      wp varnish purge --sitemaps
 		 */
 		public function purge( $args, $assoc_args ) {
 
@@ -110,6 +124,23 @@ if ( ! class_exists( 'WP_CLI_Varnish_Command' ) ) {
 
 				// translators: %s is the cache tag being purged.
 				WP_CLI::success( sprintf( __( 'Proxy Cache Purge has flushed cache for tag: %s', 'varnish-http-purge' ), $tag ) );
+				return;
+			}
+
+			// Handle sitemap purging.
+			if ( isset( $assoc_args['sitemaps'] ) ) {
+				$sitemap_urls = class_exists( 'VarnishSitemaps' ) ? VarnishSitemaps::all_urls() : array();
+
+				if ( empty( $sitemap_urls ) ) {
+					WP_CLI::error( __( 'No XML sitemaps to purge. Sitemap purging needs Yoast SEO with XML sitemaps enabled.', 'varnish-http-purge' ) );
+				}
+
+				foreach ( $sitemap_urls as $sitemap_url ) {
+					$this->varnish_purge->purge_url( $sitemap_url );
+				}
+
+				// translators: %d is the number of purge requests sent.
+				WP_CLI::success( sprintf( __( 'Proxy Cache Purge has flushed the XML sitemaps (%d purge requests).', 'varnish-http-purge' ), count( $sitemap_urls ) ) );
 				return;
 			}
 

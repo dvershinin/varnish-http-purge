@@ -709,6 +709,33 @@ class VarnishPurger {
 	}
 
 	/**
+	 * Purge a short list of URLs that belongs to no post batch.
+	 *
+	 * The URLs are queued for WP-Cron in cron-mode and purged right away
+	 * otherwise. Unlike the URLs collected by purge_post(), they do not count
+	 * toward the "too many URLs, purge everything" limit.
+	 *
+	 * @since 5.13.0
+	 * @param array $urls List of URLs to be purged.
+	 */
+	public function purge_or_enqueue_urls( $urls ) {
+		$urls = array_values( array_unique( array_filter( (array) $urls, 'is_string' ) ) );
+
+		if ( empty( $urls ) ) {
+			return;
+		}
+
+		if ( $this->is_cron_purging_enabled() ) {
+			$this->enqueue_urls( $urls );
+			return;
+		}
+
+		foreach ( $urls as $url ) {
+			self::purge_url( $url );
+		}
+	}
+
+	/**
 	 * Enqueue cache tags into the async purge queue.
 	 *
 	 * @since 5.5.0
@@ -2741,10 +2768,15 @@ if ( ! class_exists( 'VarnishStatus' ) ) {
 	require_once 'debug.php';
 	require_once 'health-check.php';
 	require_once 'varnish-tags.php';
+	require_once 'varnish-sitemaps.php';
 
 	// Always instantiate VarnishTags; the option check is done per-request in add_headers()
 	// to allow dynamic toggling without restarting PHP.
 	new VarnishTags();
 
 	$purger = new VarnishPurger();
+
+	// Always instantiate VarnishSitemaps; whether a sitemap plugin is active is
+	// checked per event, because that plugin may load after this one.
+	new VarnishSitemaps( $purger );
 }

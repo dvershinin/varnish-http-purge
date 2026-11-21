@@ -11,7 +11,7 @@
 #   "Parameter #1 $url of method ...::purge_url() expects array, string given"
 #   "Method ...::nocache_cssjs() has invalid return type url"
 #
-# Scoped to the two files whose public-API docblocks we guarantee. The stub file
+# Scoped to the files whose public-API docblocks we guarantee. The stub file
 # is symlinked into build/ by CI / the `phpstan-phpdoc` Makefile target.
 #
 # This job intentionally only polices DOCBLOCK TYPE CORRECTNESS. The dead-code /
@@ -24,6 +24,7 @@ parameters:
     paths:
         - varnish-http-purge.php
         - debug.php
+        - varnish-sitemaps.php
     scanFiles:
         - build/wordpress-stubs.php
     bootstrapFiles:
