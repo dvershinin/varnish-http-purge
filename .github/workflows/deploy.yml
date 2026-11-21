@@ -10,6 +10,9 @@ jobs:
   test:
     name: Run Tests
     uses: ./.github/workflows/tests.yml
+    # The nginx arm of the suite builds from a private module repo; a called
+    # workflow gets no secrets unless they are passed on.
+    secrets: inherit
 
   deploy:
     name: Deploy to WordPress.org
